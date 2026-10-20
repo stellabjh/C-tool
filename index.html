@@ -741,7 +741,7 @@
       const count = { green: 0, yellow: 0, red: 0 };
       rows.forEach((r) => count[r.j.color]++);
 
-      // ---- 0. 보장분석신호등 ----
+      // ---- 보장분석신호등 ----
       const trafficHtml = `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
           <div>
@@ -778,24 +778,50 @@
         byCompany[k] = (byCompany[k] || 0) + parseNum(c.premium);
       });
       const companies = Object.keys(byCompany);
+      const cName = DATA.clientName || "고객";
+      const pName = DATA.productName || "맞춤 보장 설계안";
+      const picks = ["일반암", "뇌혈관", "허혈", "입원"].map((k) => rows.find((r) => r.cat.key === k)).filter(Boolean);
+      const hasContracts = existingList.length + proposedList.length > 0;
       const summaryHtml = `
-        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white p-4 space-y-3 shadow-sm">
+          <div class="flex items-center justify-between gap-2">
+            ${DATA.targetDate ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-500/20 border border-teal-400/30 text-teal-200 text-[11px] font-semibold"><span>${DATA.mode === "child" ? "👶" : "🛡️"}</span> ${esc(computeDdayText(DATA.targetDate, DATA.targetLabel))}</span>` : `<span></span>`}
+            ${DATA.issueNo ? `<span class="text-[10px] text-slate-300 font-mono">발행번호 ${esc(DATA.issueNo)}</span>` : ""}
+          </div>
           <div>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold">계약현황 요약</span>
-            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">한눈에 보는 계약 구성</h3>
+            <span class="px-2 py-0.5 rounded-md bg-white/10 text-teal-200 text-[10px] font-extrabold">계약현황 요약</span>
+            <h2 class="text-lg font-extrabold leading-snug mt-1">${esc(cName)}님의 계약현황 요약</h2>
+            <p class="text-xs text-teal-200/90 font-medium mt-0.5">${esc(DATA.insuredName ? pName + " · " + DATA.insuredName : pName)}</p>
           </div>
+          ${DATA.agentComment && DATA.agentComment.trim() ? `
+            <div class="rounded-xl bg-white/10 border border-white/15 p-3">
+              <p class="text-[11px] font-bold text-teal-300 mb-1">💌 담당 컨설턴트 핵심 체크포인트</p>
+              <p class="text-xs text-slate-100 leading-relaxed">${esc(DATA.agentComment)}</p>
+            </div>` : ""}
           <div class="grid grid-cols-2 gap-2">
-            <div class="rounded-xl bg-slate-50 border border-slate-200 p-3"><p class="text-[10px] text-slate-500">기존 계약</p><p class="text-base font-black text-slate-900">${exChecked.length}<span class="text-xs font-bold text-slate-500">/${existingList.length}건</span></p><p class="text-[11px] text-slate-600">${won(exPrem)}/월</p></div>
-            <div class="rounded-xl bg-teal-50 border border-teal-200 p-3"><p class="text-[10px] text-teal-700">신규 제안</p><p class="text-base font-black text-teal-800">${prChecked.length}<span class="text-xs font-bold text-teal-600">/${proposedList.length}건</span></p><p class="text-[11px] text-teal-700">${won(prPrem)}/월</p></div>
-            <div class="rounded-xl bg-slate-900 p-3"><p class="text-[10px] text-slate-300">월 보험료 합계</p><p class="text-base font-black text-teal-300">${won(exPrem + prPrem)}</p></div>
-            <div class="rounded-xl bg-slate-50 border border-slate-200 p-3"><p class="text-[10px] text-slate-500">선택 담보 / 보험사</p><p class="text-base font-black text-slate-900">${riderCnt}개 <span class="text-xs font-bold text-slate-500">/ ${companies.length}개사</span></p></div>
+            <div class="rounded-xl bg-white/10 border border-white/10 p-3"><p class="text-[10px] text-slate-300">기존 계약</p><p class="text-base font-black">${exChecked.length}<span class="text-xs font-bold text-slate-300">/${existingList.length}건</span></p><p class="text-[11px] text-slate-300">${won(exPrem)}/월</p></div>
+            <div class="rounded-xl bg-teal-500/20 border border-teal-400/30 p-3"><p class="text-[10px] text-teal-200">신규 제안</p><p class="text-base font-black text-teal-100">${prChecked.length}<span class="text-xs font-bold text-teal-200">/${proposedList.length}건</span></p><p class="text-[11px] text-teal-200">${won(prPrem)}/월</p></div>
+            <div class="rounded-xl bg-slate-950/60 border border-slate-800 p-3"><p class="text-[10px] text-slate-400">월 보험료 합계</p><p class="text-base font-black text-teal-300">${won(exPrem + prPrem)}</p></div>
+            <div class="rounded-xl bg-slate-950/60 border border-slate-800 p-3"><p class="text-[10px] text-slate-400">선택 담보 / 보험사</p><p class="text-base font-black text-white">${riderCnt}개 <span class="text-xs font-bold text-slate-300">/ ${companies.length}개사</span></p></div>
           </div>
+          ${hasContracts ? `
+            <div class="space-y-1.5">
+              <p class="text-[11px] font-bold text-slate-300">핵심 보장 (선택한 계약 합산)</p>
+              <div class="grid grid-cols-2 gap-2">
+                ${picks.map((r) => `
+                  <div class="rounded-xl bg-white/10 border border-white/10 p-3">
+                    <p class="text-[10px] font-bold text-teal-300">${esc(r.cat.label)}</p>
+                    <p class="text-sm font-black text-white mt-0.5">${fmt(r.total)}</p>
+                    <p class="text-[11px] text-slate-300 mt-0.5 leading-snug">기존 ${fmt(r.ex)} + 신규 ${r.pr > 0 ? fmt(r.pr) : "-"} · ${LIGHT[r.j.color].emoji} ${r.j.text}</p>
+                  </div>`).join("")}
+              </div>
+            </div>` : ""}
           ${companies.length ? `
             <div class="space-y-1">
-              <p class="text-[11px] font-bold text-slate-500">보험사별 월 보험료</p>
-              ${companies.map((k) => `<div class="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-3 py-1.5 border border-slate-100"><span class="font-semibold text-slate-700">${esc(k)}</span><span class="font-extrabold text-slate-900">${won(byCompany[k])}</span></div>`).join("")}
+              <p class="text-[11px] font-bold text-slate-300">보험사별 월 보험료</p>
+              ${companies.map((k) => `<div class="flex items-center justify-between text-xs bg-white/10 rounded-lg px-3 py-1.5 border border-white/10"><span class="font-semibold text-slate-100">${esc(k)}</span><span class="font-extrabold text-teal-200">${won(byCompany[k])}</span></div>`).join("")}
             </div>` : ""}
-        </div>`;
+        </section>`;
 
       // ---- 2. 보유 계약현황 ----
       const holdHtml = `
@@ -887,24 +913,9 @@
           </div>
         </div>`;
 
-      // 화면 맨 위 핵심 보장 4칸도 같은 계산값으로 그립니다.
-      const heroEl = document.getElementById("uiHeroMetrics");
-      if (heroEl) {
-        const pick = ["일반암", "뇌혈관", "허혈", "입원"];
-        heroEl.innerHTML = existingList.length + proposedList.length === 0 ? "" : pick
-          .map((k) => rows.find((r) => r.cat.key === k))
-          .filter(Boolean)
-          .map((r) => `
-            <div class="rounded-xl bg-white/10 border border-white/10 p-3">
-              <p class="text-[10px] font-bold text-teal-300">${esc(r.cat.label)}</p>
-              <p class="text-sm font-black text-white mt-0.5">${fmt(r.total)}</p>
-              <p class="text-[11px] text-slate-300 mt-0.5 leading-snug">기존 ${fmt(r.ex)} + 신규 ${r.pr > 0 ? fmt(r.pr) : "-"} · ${LIGHT[r.j.color].emoji} ${r.j.text}</p>
-            </div>`).join("");
-      }
-
       // 펼침 상태 유지 (체크박스를 눌러 다시 그려도 열어둔 상품은 그대로)
       const opened = Array.from(root.querySelectorAll("details")).map((d) => d.open);
-      root.innerHTML = trafficHtml + summaryHtml + holdHtml + diagHtml + productHtml;
+      root.innerHTML = summaryHtml + trafficHtml + holdHtml + diagHtml + productHtml;
       root.querySelectorAll("details").forEach((d, i) => { if (opened[i]) d.open = true; });
     }
 
@@ -993,40 +1004,6 @@
 
   <!-- Main Shell Container -->
   <div id="mainShell" class="mobile-shell pb-28 transition-all duration-200">
-
-    <!-- Hero Section -->
-    <section class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white px-5 pt-5 pb-6">
-      <div class="flex items-center justify-between gap-2 mb-3">
-        <span id="uiDdayBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-500/20 border border-teal-400/30 text-teal-200 text-xs font-semibold"></span>
-        <span id="uiIssueNo" class="text-[11px] text-slate-300 font-mono"></span>
-      </div>
-
-      <h1 id="uiHeroHeading" class="text-xl font-extrabold leading-snug mb-1.5 text-white"></h1>
-      <p id="uiHeroProduct" class="text-xs text-teal-200/90 font-medium mb-4"></p>
-
-      <!-- Agent Comment Highlight Box -->
-      <div id="uiCommentBox" class="rounded-2xl bg-white/10 backdrop-blur-sm border border-white/15 p-3.5 mb-4 hidden">
-        <p class="text-[11px] font-bold text-teal-300 mb-1 flex items-center gap-1">
-          <span>💌</span> 담당 컨설턴트 핵심 체크포인트
-        </p>
-        <p id="uiAgentComment" class="text-xs text-slate-100 leading-relaxed"></p>
-      </div>
-
-      <!-- Premium Bar -->
-      <div class="grid grid-cols-2 gap-2.5 mb-4">
-        <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
-          <p class="text-[11px] text-slate-400">월 납입 보험료</p>
-          <p id="uiPrem1Val" class="text-base font-extrabold text-teal-300 mt-0.5"></p>
-        </div>
-        <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-3">
-          <p class="text-[11px] text-slate-400">피보험자 / 특약구성</p>
-          <p id="uiPrem2Val" class="text-sm font-bold text-white mt-0.5 truncate"></p>
-        </div>
-      </div>
-
-      <!-- 4 Key Metrics Grid -->
-      <div id="uiHeroMetrics" class="grid grid-cols-2 gap-2.5"></div>
-    </section>
 
     <!-- Navigation Tabs: 보장분석신호등 / 계약·비교 / 상황예시 / 일당계산 / 특약·감액 -->
     <div class="sticky top-[49px] z-30 bg-white border-b border-slate-200 px-2.5 py-2 shadow-sm nav-tabs-bar no-print">
@@ -1326,18 +1303,6 @@
     document.getElementById("uiBrandShort").textContent = DATA.brandShort || "Hi";
     document.getElementById("uiHeaderTitle").textContent = \`\${cName}님 전용 맞춤 가이드\`;
     document.getElementById("uiHeaderSub").textContent = pName;
-    document.getElementById("uiDdayBadge").innerHTML = \`<span>\${DATA.mode === 'child' ? '👶' : '🛡️'}</span> \${computeDdayText(DATA.targetDate, DATA.targetLabel)}\`;
-    document.getElementById("uiIssueNo").textContent = DATA.issueNo ? \`발행번호 \${DATA.issueNo}\` : "";
-    document.getElementById("uiHeroHeading").textContent = \`\${cName}님을 위한 실무 보장 인포그래픽\`;
-    document.getElementById("uiHeroProduct").textContent = DATA.insuredName ? \`\${pName} · \${DATA.insuredName}\` : pName;
-
-    if (DATA.agentComment && DATA.agentComment.trim() !== "") {
-      document.getElementById("uiCommentBox").classList.remove("hidden");
-      document.getElementById("uiAgentComment").textContent = DATA.agentComment;
-    }
-
-    document.getElementById("uiPrem1Val").textContent = DATA.premium1 || "설계서 참조";
-    document.getElementById("uiPrem2Val").textContent = DATA.premium2 ? \`변경후 \${DATA.premium2}\` : (DATA.totalRidersBadge || DATA.insuredName || "맞춤 플랜");
 
     document.getElementById("uiFooterAgent").textContent = DATA.agentName || "담당 컨설턴트";
     document.getElementById("uiFooterOrg").textContent = DATA.agentOrg || "";
