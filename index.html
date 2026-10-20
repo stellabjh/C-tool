@@ -115,7 +115,7 @@
             <label for="fileInput" class="flex flex-col items-center justify-center border-2 border-dashed border-slate-600 hover:border-teal-400 rounded-2xl p-6 cursor-pointer bg-slate-900/50 hover:bg-slate-800/50 transition text-center">
               <span class="text-3xl mb-2">📂</span>
               <span class="text-xs font-bold text-slate-200">클릭하거나 기존 증권 / 신규 설계서 파일들을 한 번에 끌어다 놓으세요</span>
-              <span class="text-[11px] text-slate-400 mt-1">기존 계약과 신규 제안 계약을 자동으로 구분·통합하여 비교표를 생성합니다.</span>
+              <span class="text-[11px] text-slate-400 mt-1">파일을 넣으면 바로 읽기 시작합니다. 다 읽으면 아래 버튼으로 기존/신규 계약을 통합해 비교표를 생성합니다.</span>
               <input id="fileInput" type="file" multiple accept=".pdf,image/*" class="hidden" />
             </label>
             <div id="fileListDisplay" class="space-y-1.5 hidden"></div>
@@ -126,7 +126,7 @@
             </div>
 
             <button id="btnAnalyzeAi" class="w-full py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-sm shadow-lg shadow-teal-500/20 transition flex items-center justify-center gap-2">
-              <span>✨</span> 기존/신규 계약 비교분석 & 감액정보 통합 생성
+              <span>✨</span> 읽은 서류로 비교분석 & 감액정보 통합 생성
             </button>
             <div id="aiStatusBox" class="hidden p-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-teal-300 flex items-center gap-2">
               <div class="animate-spin h-4 w-4 border-2 border-teal-400 border-t-transparent rounded-full shrink-0"></div>
@@ -607,27 +607,19 @@
     // 고객용 HTML 템플릿 (기존/신규 계약 체크박스, 상세페이지, 비교표, 감액기간 완벽 포함)
     // =========================================================================
         // =========================================================================
-    // 고객용 리포트의 [현황·신호등] 탭 렌더러.
+    // 고객용 리포트의 [보장분석신호등] 탭 렌더러.
     // generateClientHtml 안에 renderStatusViews.toString()으로 그대로 삽입되어
     // 고객 화면에서 실행됩니다. (parseNum 은 고객 화면 스크립트에 정의되어 있음)
     // =========================================================================
-    function renderStatusViews(DATA, existingList, proposedList) {
-      const root = document.getElementById("statusRoot");
-      if (!root) return;
-
-      const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-      const won = (n) => (n > 0 ? Math.round(n).toLocaleString() + "원" : "0원");
-      const fmt = (v) => {
-        if (!v || v <= 0) return "미가입";
-        if (v >= 10000) {
-          const eok = Math.floor(v / 10000), man = Math.round(v % 10000);
-          return man > 0 ? eok + "억 " + man.toLocaleString() + "만원" : eok + "억원";
-        }
-        return Math.round(v).toLocaleString() + "만원";
-      };
-
-      // 업계 일반 권장 기준(만원). DATA.recommended 로 덮어쓸 수 있음 (참고용 기준)
-      const REC = Object.assign({ "일반암": 5000, "유사암": 1000, "뇌혈관": 3000, "허혈": 3000, "수술": 500, "입원": 5, "1인실": 10, "골절": 100 }, DATA.recommended || {});
+    // =========================================================================
+    // 담보별 보장 현황 계산 (기존 + 신규 합산, 권장 대비 신호등 판정).
+    // 고객 화면(renderStatusViews)과 빌더의 상담 대사 생성이 같은 숫자를 쓰도록 한 곳에서 계산합니다.
+    // generateClientHtml 안에 toString()으로 그대로 삽입되므로 외부 변수에 기대지 않습니다.
+    // num: 금액 문자열/숫자를 만원 단위 숫자로 바꾸는 함수
+    // =========================================================================
+    function computeCoverage(existingList, proposedList, recommended, num) {
+      // 업계 일반 권장 기준(만원). 데이터 JSON의 recommended 로 덮어쓸 수 있음 (참고용 기준)
+      const REC = Object.assign({ "일반암": 5000, "유사암": 1000, "뇌혈관": 3000, "허혈": 3000, "수술": 500, "입원": 5, "1인실": 10, "골절": 100 }, recommended || {});
       const CATS = [
         { key: "일반암", label: "암 진단비 (일반암)" },
         { key: "유사암", label: "유사암 진단비" },
@@ -638,8 +630,7 @@
         { key: "1인실", label: "상급종합 1인실/간병일당" },
         { key: "골절", label: "골절 진단비" }
       ];
-
-      const amountOf = (r) => parseNum(r.amountManwon !== undefined ? r.amountManwon : r.amount);
+      const amountOf = (r) => num(r.amountManwon !== undefined ? r.amountManwon : r.amount);
       const sumBy = (list, key) => {
         let t = 0;
         list.forEach((c) => {
@@ -650,12 +641,6 @@
         });
         return t;
       };
-
-      const LIGHT = {
-        green: { dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500", emoji: "🟢" },
-        yellow: { dot: "bg-amber-400", chip: "bg-amber-50 text-amber-700 border-amber-200", bar: "bg-amber-400", emoji: "🟡" },
-        red: { dot: "bg-rose-500", chip: "bg-rose-50 text-rose-700 border-rose-200", bar: "bg-rose-500", emoji: "🔴" }
-      };
       const judge = (cur, rec) => {
         if (cur <= 0) return { color: "red", text: "미가입" };
         const p = cur / rec;
@@ -663,8 +648,7 @@
         if (p >= 0.5) return { color: "yellow", text: "보완 권장" };
         return { color: "red", text: "부족" };
       };
-
-      const rows = CATS.map((cat) => {
+      return CATS.map((cat) => {
         const ex = sumBy(existingList, cat.key);
         const pr = sumBy(proposedList, cat.key);
         const total = ex + pr;
@@ -681,14 +665,87 @@
         });
         return { cat, ex, pr, total, rec, j, pct, reduction };
       });
+    }
+
+    // 빌더 전용: 상담 대사 생성에 쓸 "계산된 보장 현황" 문장 (모든 담보를 선택한 상태 기준)
+    function coverageFactsText(existing, proposed, recommended) {
+      const all = (list) => (list || []).map((c) => ({ ...c, checked: true, riders: (c.riders || []).map((r) => ({ ...r, checked: true })) }));
+      const f = (v) => (v > 0 ? Math.round(v).toLocaleString() + "만원" : "없음");
+      return computeCoverage(all(existing), all(proposed), recommended, toManwon)
+        .map((r) => `${r.cat.label}: 기존 ${f(r.ex)} + 신규 ${f(r.pr)} = 합산 ${f(r.total)} / 권장 ${f(r.rec)} → ${r.j.text}`)
+        .join("\n");
+    }
+
+    // =========================================================================
+    // 시나리오의 예상 수령액 계산. AI는 상황과 담보 id만 정하고 금액은 계약에서 계산합니다.
+    // (예전 형식 — riderId 없이 금액 문자열이 들어 있는 데이터는 그대로 보여줍니다)
+    // generateClientHtml 안에 toString()으로 삽입됩니다. parseNum 은 고객 화면에 정의되어 있습니다.
+    // =========================================================================
+    function resolveScenario(s, existingList, proposedList) {
+      const payouts = Array.isArray(s.payouts) ? s.payouts : [];
+      if (!payouts.some((p) => p && p.riderId)) return s;
+      const fmtM = (v) => {
+        if (!v || v <= 0) return "0원";
+        if (v >= 10000) {
+          const eok = Math.floor(v / 10000), man = Math.round(v % 10000);
+          return man > 0 ? eok + "억 " + man.toLocaleString() + "만원" : eok + "억원";
+        }
+        return Math.round(v).toLocaleString() + "만원";
+      };
+      const find = (id) => {
+        for (const list of [existingList, proposedList]) {
+          for (const c of list) {
+            for (const r of c.riders || []) if (r.id === id) return { c, r };
+          }
+        }
+        return null;
+      };
+      let sum = 0;
+      const out = payouts.map((p) => {
+        const hit = p && p.riderId ? find(p.riderId) : null;
+        if (!hit) return null; // 계약에서 사라진 담보는 보여주지 않음
+        const { c, r } = hit;
+        const base = parseNum(r.amountManwon !== undefined ? r.amountManwon : r.amount);
+        const daily = /일당/.test(r.name);
+        const days = daily ? (Number(p.days) > 0 ? Number(p.days) : 1) : 0;
+        const amt = daily ? base * days : base;
+        const included = !!(c.checked && r.checked);
+        if (included) sum += amt;
+        const notes = [p.note || "", daily ? fmtM(base) + " × " + days + "일" : "", included ? "" : "체크 해제된 담보"].filter(Boolean);
+        return { name: r.name + (c.company ? " (" + c.company + ")" : ""), amount: included ? fmtM(amt) : "제외", note: notes.join(" · ") };
+      }).filter(Boolean);
+      return Object.assign({}, s, { payouts: out, summaryAmount: out.length ? fmtM(sum) : "해당 담보 없음" });
+    }
+
+    function renderStatusViews(DATA, existingList, proposedList) {
+      const root = document.getElementById("statusRoot");
+      if (!root) return;
+
+      const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const won = (n) => (n > 0 ? Math.round(n).toLocaleString() + "원" : "0원");
+      const fmt = (v) => {
+        if (!v || v <= 0) return "미가입";
+        if (v >= 10000) {
+          const eok = Math.floor(v / 10000), man = Math.round(v % 10000);
+          return man > 0 ? eok + "억 " + man.toLocaleString() + "만원" : eok + "억원";
+        }
+        return Math.round(v).toLocaleString() + "만원";
+      };
+
+      const LIGHT = {
+        green: { dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500", emoji: "🟢" },
+        yellow: { dot: "bg-amber-400", chip: "bg-amber-50 text-amber-700 border-amber-200", bar: "bg-amber-400", emoji: "🟡" },
+        red: { dot: "bg-rose-500", chip: "bg-rose-50 text-rose-700 border-rose-200", bar: "bg-rose-500", emoji: "🔴" }
+      };
+      const rows = computeCoverage(existingList, proposedList, DATA.recommended, parseNum);
       const count = { green: 0, yellow: 0, red: 0 };
       rows.forEach((r) => count[r.j.color]++);
 
-      // ---- 0. 보험 신호등 ----
+      // ---- 0. 보장분석신호등 ----
       const trafficHtml = `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
           <div>
-            <span class="px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-[11px] font-extrabold">🚦 보험 신호등</span>
+            <span class="px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-[11px] font-extrabold">🚦 보장분석신호등</span>
             <h3 class="text-sm font-extrabold text-slate-900 mt-1">선택한 계약 기준 보장 점검</h3>
             <p class="text-[11px] text-slate-500 mt-0.5">🟢 권장 이상 · 🟡 권장의 50% 이상 · 🔴 50% 미만/미가입 (업계 일반 기준, 참고용)</p>
           </div>
@@ -830,6 +887,21 @@
           </div>
         </div>`;
 
+      // 화면 맨 위 핵심 보장 4칸도 같은 계산값으로 그립니다.
+      const heroEl = document.getElementById("uiHeroMetrics");
+      if (heroEl) {
+        const pick = ["일반암", "뇌혈관", "허혈", "입원"];
+        heroEl.innerHTML = existingList.length + proposedList.length === 0 ? "" : pick
+          .map((k) => rows.find((r) => r.cat.key === k))
+          .filter(Boolean)
+          .map((r) => `
+            <div class="rounded-xl bg-white/10 border border-white/10 p-3">
+              <p class="text-[10px] font-bold text-teal-300">${esc(r.cat.label)}</p>
+              <p class="text-sm font-black text-white mt-0.5">${fmt(r.total)}</p>
+              <p class="text-[11px] text-slate-300 mt-0.5 leading-snug">기존 ${fmt(r.ex)} + 신규 ${r.pr > 0 ? fmt(r.pr) : "-"} · ${LIGHT[r.j.color].emoji} ${r.j.text}</p>
+            </div>`).join("");
+      }
+
       // 펼침 상태 유지 (체크박스를 눌러 다시 그려도 열어둔 상품은 그대로)
       const opened = Array.from(root.querySelectorAll("details")).map((d) => d.open);
       root.innerHTML = trafficHtml + summaryHtml + holdHtml + diagHtml + productHtml;
@@ -841,6 +913,9 @@
       delete safeData.scripts;
       delete safeData.scriptPrompts;
       delete safeData.fileResults;
+      delete safeData.gapAnalysis;
+      delete safeData.analysisMetrics;
+      delete safeData.heroMetrics;
 
       const safeJson = JSON.stringify(safeData).replace(/<\//g, '<\\/');
       const displayClient = safeData.clientName || "고객";
@@ -953,11 +1028,11 @@
       <div id="uiHeroMetrics" class="grid grid-cols-2 gap-2.5"></div>
     </section>
 
-    <!-- Navigation Tabs (5개 탭으로 확장: 보장분석 / 계약·비교 / 상황예시 / 일당계산 / 특약·감액) -->
+    <!-- Navigation Tabs: 보장분석신호등 / 계약·비교 / 상황예시 / 일당계산 / 특약·감액 -->
     <div class="sticky top-[49px] z-30 bg-white border-b border-slate-200 px-2.5 py-2 shadow-sm nav-tabs-bar no-print">
       <div class="flex gap-1 bg-slate-100 p-1 rounded-xl text-center overflow-x-auto no-scrollbar">
-        <button data-view="view-report" class="nav-btn py-2 rounded-lg text-[11px] font-extrabold bg-slate-900 text-white shadow transition">
-          📊 보장분석
+        <button data-view="view-status" class="nav-btn py-2 rounded-lg text-[11px] font-extrabold bg-slate-900 text-white shadow transition">
+          🚦 보장분석신호등
         </button>
         <button data-view="view-compare" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           ⚖️ 계약·비교
@@ -971,48 +1046,8 @@
         <button data-view="view-riders" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           📋 특약·감액
         </button>
-        <button data-view="view-status" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
-          🚦 현황·신호등
-        </button>
       </div>
     </div>
-
-    <!-- VIEW 0: Coverage Diagnostic & Gap Analysis Report -->
-    <section id="view-report" class="view-section p-4 space-y-4">
-      <!-- 1. 긴급 보완 필요(부족 보장 집중 진단) 카드 -->
-      <div class="bg-white rounded-2xl p-4 border border-rose-200 shadow-sm space-y-3">
-        <div class="flex items-center justify-between">
-          <span class="px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 text-[11px] font-extrabold border border-rose-200 flex items-center gap-1">
-            <span>🚨</span> 집중 보완 필요 리포트
-          </span>
-          <span class="text-[11px] text-slate-400">보장 공백 정밀 진단</span>
-        </div>
-        <h2 class="text-base font-extrabold text-slate-900 leading-snug">
-          치명적 보장 공백 및 부족 담보 점검 결과
-        </h2>
-        <p class="text-xs text-slate-500">
-          사고나 질병 발생 시 실제 본인 부담금이 크게 발생할 수 있는 부족 항목들입니다.
-        </p>
-        <div id="gapAnalysisContainer" class="space-y-2.5 pt-1"></div>
-      </div>
-
-      <!-- 2. 주요 핵심 보장 준비수준 바 -->
-      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3.5">
-        <div>
-          <span class="px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-700 text-[11px] font-bold border border-teal-200">항목별 권장 준비율</span>
-          <h3 class="text-sm font-extrabold text-slate-900 mt-1">업계 권장 기준 대비 고객님 가입 현황</h3>
-        </div>
-        <div id="reportMetricBars" class="space-y-3"></div>
-      </div>
-
-      <!-- 3. 컨설턴트 종합 소견 -->
-      <div class="bg-teal-900/10 border border-teal-500/20 rounded-2xl p-4 space-y-1.5">
-        <h3 class="text-xs font-bold text-teal-800 flex items-center gap-1.5">
-          <span>🔍</span> 컨설턴트 보장 리포트 종합 소견
-        </h3>
-        <p id="uiReportOpinion" class="text-xs text-slate-700 leading-relaxed"></p>
-      </div>
-    </section>
 
     <!-- VIEW 1: 기존계약 & 신규제안 개별 선택 + 상세페이지 + 실시간 비교분석표 (핵심 신규 기능!) -->
     <section id="view-compare" class="view-section hidden p-4 space-y-4">
@@ -1094,8 +1129,8 @@
 
     </section>
 
-    <!-- VIEW: 현황·신호등 (계약현황 요약 / 보유계약 / 담보별 진단 / 신호등 / 상품별 담보) -->
-    <section id="view-status" class="view-section hidden p-4 space-y-4">
+    <!-- VIEW: 보장분석신호등 (신호등 / 계약현황 요약 / 보유계약 / 담보별 진단 / 상품별 담보) -->
+    <section id="view-status" class="view-section p-4 space-y-4">
       <div id="statusRoot" class="space-y-4"></div>
     </section>
 
@@ -1308,94 +1343,9 @@
     document.getElementById("uiFooterOrg").textContent = DATA.agentOrg || "";
     document.getElementById("uiBtnCall").href = \`tel:\${(DATA.agentPhone || "").replace(/[^0-9]/g, "")}\`;
 
-    const metricsEl = document.getElementById("uiHeroMetrics");
-    metricsEl.innerHTML = (DATA.heroMetrics || []).map(m => \`
-      <div class="rounded-xl bg-white/10 border border-white/10 p-3">
-        <p class="text-[10px] font-bold text-teal-300">\${m.category || ''}</p>
-        <p class="text-sm font-black text-white mt-0.5">\${m.title || ''}</p>
-        <p class="text-[11px] text-slate-300 mt-0.5 leading-snug">\${m.sub || ''}</p>
-      </div>
-    \`).join("");
 
     // =========================================================================
-    // 1. 부족 보장 분석 리포트 & 준비율 바 렌더링
-    // =========================================================================
-    function renderGapAnalysis() {
-      const container = document.getElementById("gapAnalysisContainer");
-      const gaps = DATA.gapAnalysis || [];
-      if (gaps.length === 0) {
-        container.innerHTML = \`
-          <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center">
-            현재 확인된 중대한 보장 공백이 없거나 분석 전 상태입니다.
-          </div>\`;
-        return;
-      }
-      container.innerHTML = gaps.map(g => \`
-        <div class="p-3.5 rounded-xl bg-rose-50/60 border border-rose-200/90 space-y-1.5">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-extrabold text-rose-900 flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
-              \${g.title}
-            </span>
-            <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
-              \${g.status || '보완필요'}
-            </span>
-          </div>
-          <p class="text-xs text-rose-950 font-medium leading-relaxed">\${g.problem}</p>
-          <div class="mt-1 pt-1.5 border-t border-rose-200/60 flex items-start gap-1 text-[11px] text-slate-700">
-            <span class="font-bold text-teal-800 shrink-0">💡 보완처방:</span>
-            <span>\${g.solution}</span>
-          </div>
-        </div>
-      \`).join("");
-    }
-    renderGapAnalysis();
-
-    function renderAnalysisReport() {
-      const barsContainer = document.getElementById("reportMetricBars");
-      const opinionEl = document.getElementById("uiReportOpinion");
-      const metrics = DATA.analysisMetrics || [];
-      opinionEl.textContent = DATA.agentComment || "전체적인 보장 밸런스를 점검하여 부족한 담보와 권장 준비율을 도출한 결과입니다.";
-
-      if (metrics.length === 0) {
-        barsContainer.innerHTML = \`<div class="p-4 text-center text-xs text-slate-400">보장분석 지표 데이터가 없습니다. 서류를 분석하여 생성해 주세요.</div>\`;
-        return;
-      }
-      barsContainer.innerHTML = metrics.map(m => {
-        const pct = Math.min(100, Math.max(5, Number(m.scorePct || 50)));
-        let tagClass = "bg-teal-50 text-teal-700 border-teal-200";
-        let barColor = "bg-teal-600";
-        if (m.status === "보완필요" || m.status === "부족" || pct < 50) {
-          tagClass = "bg-rose-50 text-rose-700 border-rose-200";
-          barColor = "bg-rose-500";
-        } else if (m.status === "충분" || m.status === "우수" || pct >= 90) {
-          tagClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
-          barColor = "bg-emerald-500";
-        }
-        return \`
-          <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-extrabold text-slate-800">\${m.title}</span>
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-black text-slate-900">\${m.currentVal}</span>
-                <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold border \${tagClass}">\${m.status}</span>
-              </div>
-            </div>
-            <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-              <div class="\${barColor} h-2 rounded-full transition-all duration-500" style="width: \${pct}%"></div>
-            </div>
-            <div class="flex items-center justify-between text-[10px] text-slate-500">
-              <span>권장: \${m.targetVal || '업계 권장수준'}</span>
-              <span>준비율: \${pct}%</span>
-            </div>
-          </div>
-        \`;
-      }).join("");
-    }
-    renderAnalysisReport();
-
-    // =========================================================================
-    // 2. 기존계약 / 신규제안 개별 체크박스 & 상세페이지 & 실시간 비교분석표 로직
+    // 기존계약 / 신규제안 개별 체크박스 & 상세페이지 & 실시간 비교분석표 로직
     // =========================================================================
     const existingList = (DATA.existingContracts || []).map((c, idx) => ({
       ...c,
@@ -1646,7 +1596,10 @@
 
       tbody.innerHTML = rowsHtml;
       renderStatusViews(DATA, existingList, proposedList);
+      if (window.__scenariosReady) renderScenarios();
     }
+    ${computeCoverage.toString()}
+    ${resolveScenario.toString()}
     ${renderStatusViews.toString()}
     renderCompareView();
 
@@ -1656,7 +1609,7 @@
     let activeCat = "all";
     function renderScenarios() {
       const q = (document.getElementById("scenarioSearch").value || "").trim().toLowerCase();
-      const allScenarios = DATA.scenarios || [];
+      const allScenarios = (DATA.scenarios || []).map((s) => resolveScenario(s, existingList, proposedList));
       const container = document.getElementById("scenarioList");
 
       if (allScenarios.length === 0) {
@@ -1723,6 +1676,7 @@
         renderScenarios();
       });
     });
+    window.__scenariosReady = true;
     renderScenarios();
 
     // =========================================================================
@@ -2050,6 +2004,7 @@
     if (savedApiKey) document.getElementById("apiKeyInput").value = savedApiKey;
     document.getElementById("apiKeyInput").addEventListener("change", function() {
       localStorage.setItem("GEMINI_BUILDER_API_KEY", this.value.trim());
+      kickParse();
     });
 
     // =========================================================================
@@ -2119,6 +2074,7 @@
           const j = await res.json();
           if (j && j.hasKey === true) {
             serverKey = { available: true, needsPasscode: !!j.needsPasscode, message: "" };
+            kickParse();
             setServerNote("ok", `✅ 서버(변수 및 시크릿)에 API 키가 있습니다 (${j.keyCount > 1 ? j.keyCount + "개 등록됨: 번갈아 사용" : (j.keyName || "GEMINI_API_KEY")}). 입력할 필요가 없습니다.${j.needsPasscode ? " (접속 암호 사용)" : ""}`);
             return;
           }
@@ -2274,9 +2230,50 @@
       Array.from(fileList || []).forEach(f => {
         const dup = uploadedFiles.some(u => u.file.name === f.name && u.file.size === f.size);
         if (dup) return;
-        uploadedFiles.push({ id: ++fileSeq, file: f, kind: "auto", status: "대기", pct: 0, ms: 0, msg: "", result: null });
+        uploadedFiles.push({ id: ++fileSeq, file: f, kind: "auto", status: "대기", pct: 0, ms: 0, msg: "", result: null, promise: null });
       });
       renderFileList();
+      kickParse();
+    }
+
+    // 동시에 읽는 파일 수를 제한하는 대기열 (자동 읽기와 통합 버튼이 같은 대기열을 씁니다)
+    let activeParses = 0;
+    const parseWaiters = [];
+    const acquireSlot = () => new Promise(resolve => {
+      const go = () => { activeParses++; resolve(); };
+      activeParses < PARSE_CONCURRENCY ? go() : parseWaiters.push(go);
+    });
+    const releaseSlot = () => { activeParses--; const next = parseWaiters.shift(); if (next) next(); };
+
+    // 파일 하나를 읽는 작업을 시작합니다. 이미 진행 중이면 그 작업을 그대로 돌려줍니다.
+    function startParse(item, apiKey, rawText) {
+      if (item.promise) return item.promise;
+      item.promise = (async () => {
+        item.msg = "순서 대기 중..."; renderFileList();
+        await acquireSlot();
+        try {
+          if (item.file && !uploadedFiles.includes(item)) return; // 대기 중에 삭제된 파일
+          await parseOneFile(item, apiKey, rawText);
+        } finally {
+          releaseSlot();
+          item.promise = null;
+        }
+      })();
+      return item.promise;
+    }
+
+    // 아직 안 읽은 파일을 자동으로 읽습니다. AI 연결이 없으면 조용히 기다렸다가 연결되면 읽습니다.
+    function kickParse() {
+      const apiKey = document.getElementById("apiKeyInput").value.trim();
+      const waiting = uploadedFiles.filter(u => u.status === "대기" && !u.promise);
+      if (waiting.length === 0) return;
+      if (!apiKey && !serverKey.available) {
+        waiting.forEach(u => { u.msg = "AI 연결(API 키) 확인 후 자동으로 읽습니다"; });
+        renderFileList();
+        return;
+      }
+      const rawText = document.getElementById("rawTextInput").value.trim();
+      waiting.forEach(u => startParse(u, apiKey, rawText));
     }
 
     function renderFileList() {
@@ -2360,7 +2357,7 @@
       const pName = currentData.productName || "보험";
       const p1 = currentData.premium1 || "";
       const scenariosText = (currentData.scenarios || []).map(s => `${s.title}: ${s.summaryAmount}`).join(", ");
-      const gapsText = (currentData.gapAnalysis || []).map(g => `${g.title}(${g.status}): ${g.problem}`).join("; ");
+      const gapsText = coverageFactsText(currentData.existingContracts, currentData.proposedContracts, currentData.recommended);
       const prompts = currentData.scriptPrompts;
 
       const prompt = `당신은 대한민국 최고의 보험 세일즈 코치이자 실전 화법 전문가입니다.
@@ -2474,7 +2471,7 @@ ${FILE_PARSE_SCHEMA}` });
         const manwon = Number(r.amountManwon) > 0 ? Number(r.amountManwon) : toManwon(r.amount);
         return {
           cat: r.cat || "기타", name: r.name || "", amount: r.amount || (manwon ? manwon.toLocaleString() + "만원" : ""),
-          amountManwon: manwon, riderPrem: r.riderPrem || "",
+          id: `${prefix}_${idx}_r_${i}`, amountManwon: manwon, riderPrem: r.riderPrem || "",
           reductionPeriod: r.reductionPeriod || "", reductionAmount: r.reductionAmount || "",
           checked: true
         };
@@ -2511,7 +2508,7 @@ ${FILE_PARSE_SCHEMA}` });
     function compactContracts(list) {
       return list.map(c => ({
         company: c.company, productName: c.productName, premium: c.premium, period: c.period,
-        riders: c.riders.map(r => `${r.cat}|${r.name}|${r.amount}|${r.reductionPeriod}`)
+        riders: c.riders.map(r => `${r.id}|${r.cat}|${r.name}|${r.amount}|${r.reductionPeriod}`)
       }));
     }
 
@@ -2539,12 +2536,11 @@ ${FILE_PARSE_SCHEMA}` });
         const todo = items.filter(u => !(u.status === "완료" && u.result));
         const t0 = performance.now();
         let finished = items.length - todo.length;
-        statusText.textContent = `1/2단계: 파일별 읽기 (${finished}/${items.length})`;
-        await runPool(todo, PARSE_CONCURRENCY, async (u) => {
-          await parseOneFile(u, apiKey, rawText);
+        statusText.textContent = todo.length ? `1/2단계: 파일별 읽기 (${finished}/${items.length})` : "1/2단계: 이미 읽은 파일 사용";
+        await Promise.all(todo.map(u => startParse(u, apiKey, rawText).then(() => {
           finished++;
           statusText.textContent = `1/2단계: 파일별 읽기 (${finished}/${items.length})`;
-        });
+        })));
 
         const okItems = items.filter(u => u.status === "완료" && u.result);
         const failed = items.filter(u => u.status === "실패");
@@ -2558,11 +2554,14 @@ ${FILE_PARSE_SCHEMA}` });
         statusText.textContent = "2/2단계: 부족 보장·시나리오·상담 대사 분석 중...";
         const prompts = currentData.scriptPrompts;
         const synthPrompt = `당신은 대한민국 최고의 보험 상품 분석가이자 정밀 보장분석·리모델링 전문가입니다.
-아래는 고객 서류에서 이미 추출한 기존 계약과 신규 제안 계약입니다. 이를 근거로 고객용 보장분석 리포트와 5대 실전 제안 대사를 작성하세요. 계약 정보 자체는 다시 쓰지 마세요.
+아래는 고객 서류에서 이미 추출한 기존 계약과 신규 제안 계약입니다. 이를 근거로 고객용 리포트 요약과 5대 실전 제안 대사를 작성하세요. 계약 정보 자체는 다시 쓰지 마세요. 부족 보장 진단, 신호등, 핵심 보장 금액, 시나리오별 예상 수령액은 화면에서 계약 금액으로 직접 계산하므로 금액을 쓰지 마세요. 시나리오는 상황만 정하고, 그 상황에서 지급되는 담보를 위 계약 목록의 id(각 담보 맨 앞 값)로 가리키세요. 계약에 없는 담보는 넣지 마세요.
 
 [고객] ${merged.customer.name || "미상"} (피보험자 ${merged.customer.insuredName || "미상"}, ${merged.customer.birth || "나이 미상"})
 [기존 계약] ${JSON.stringify(compactContracts(merged.existingContracts))}
 [신규 제안 계약] ${JSON.stringify(compactContracts(merged.proposedContracts))}
+
+[계산된 보장 현황 — 담보 금액을 합산한 결과입니다. 금액과 부족 여부는 이 숫자만 근거로 쓰고, 다른 금액을 지어내지 마세요]
+${coverageFactsText(merged.existingContracts, merged.proposedContracts, currentData.recommended)}
 
 [설계사가 지정한 5가지 실전 상담 상황]
 상황1: ${prompts.p1 || "첫 안내 멘트"}
@@ -2586,11 +2585,8 @@ ${rawText || "없음"}
   "premium2": "변경후 보험료 요약 (없으면 빈 문자열)",
   "totalRidersBadge": "총 가입 특약 개수 요약",
   "agentComment": "보장분석 총평 2문장",
-  "gapAnalysis": [ { "title": "부족 담보명", "status": "보완시급 | 보장공백", "problem": "부족 시 문제점", "solution": "보완 제안" } ],
-  "analysisMetrics": [ { "title": "담보명", "currentVal": "현재 가입금액", "targetVal": "권장 기준", "scorePct": 70, "status": "보완필요 | 적정 | 충분" } ],
   "calcRates": { "diseaseBase": 0, "injuryBase": 0, "generalAdd": 0, "tertiaryAdd": 0, "singleRoomAdd": 0, "icuOrIncuAdd": 0 },
-  "heroMetrics": [ { "category": "카테고리명", "title": "핵심보장 금액", "sub": "부연설명" } ],
-  "scenarios": [ { "id": "고유영문ID", "category": "emergency | hospital | injury | birth | critical 중 택1", "badge": "배지명", "icon": "이모지 1개", "title": "실제 상황 제목", "ConditionCode": "질병코드 또는 조건", "summaryAmount": "예상 수령액 요약", "highlight": "보장 포인트", "payouts": [ { "name": "특약명", "amount": "금액", "note": "기준" } ], "caution": "유의사항" } ],
+  "scenarios": [ { "id": "고유영문ID", "category": "emergency | hospital | injury | birth | critical 중 택1", "badge": "배지명", "icon": "이모지 1개", "title": "실제 상황 제목", "ConditionCode": "질병코드 또는 조건", "highlight": "보장 포인트 설명 (금액·숫자는 쓰지 마세요)", "payouts": [ { "riderId": "위 계약 목록의 담보 id (맨 앞 값)", "days": 일당형 담보일 때만 예상 일수(숫자), "note": "지급 기준 설명 (금액은 쓰지 마세요)" } ], "caution": "유의사항" } ],
   "scripts": { "s1": "", "s2": "", "s3": "", "s4": "", "s5": "" }
 }`;
 
@@ -2634,7 +2630,7 @@ ${rawText || "없음"}
         let msg = `✨ 분석 완료 (${total}초)\n- 읽은 파일 ${okItems.length}/${items.length}개 · 기존 ${merged.existingContracts.length}건 / 신규 ${merged.proposedContracts.length}건`;
         if (failed.length) msg += `\n⚠️ 읽지 못한 파일: ${failed.map(f => f.file?.name).join(", ")}`;
         if (synthError) msg += `\n⚠️ 부족보장·시나리오·대사 생성은 실패했습니다(${synthError}). 계약·담보 표는 정상 반영되었으니 [제안 대사] 탭의 일괄 생성 버튼으로 다시 시도해 주세요.`;
-        msg += "\n\n우측 미리보기의 [🚦 현황·신호등] 탭을 확인해 보세요.";
+        msg += "\n\n우측 미리보기의 [🚦 보장분석신호등] 탭을 확인해 보세요.";
         alert(msg);
       } catch (err) {
         alert("AI 분석 중 오류가 발생했습니다: " + err.message);
