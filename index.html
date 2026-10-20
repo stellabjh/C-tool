@@ -115,7 +115,7 @@
             <label for="fileInput" class="flex flex-col items-center justify-center border-2 border-dashed border-slate-600 hover:border-teal-400 rounded-2xl p-6 cursor-pointer bg-slate-900/50 hover:bg-slate-800/50 transition text-center">
               <span class="text-3xl mb-2">📂</span>
               <span class="text-xs font-bold text-slate-200">클릭하거나 기존 증권 / 신규 설계서 파일들을 한 번에 끌어다 놓으세요</span>
-              <span class="text-[11px] text-slate-400 mt-1">기존 계약과 신규 제안 계약을 자동으로 구분·통합하여 비교표를 생성합니다.</span>
+              <span class="text-[11px] text-slate-400 mt-1">파일을 넣으면 바로 읽기 시작합니다. 다 읽으면 아래 버튼으로 기존/신규 계약을 통합해 비교표를 생성합니다.</span>
               <input id="fileInput" type="file" multiple accept=".pdf,image/*" class="hidden" />
             </label>
             <div id="fileListDisplay" class="space-y-1.5 hidden"></div>
@@ -126,7 +126,7 @@
             </div>
 
             <button id="btnAnalyzeAi" class="w-full py-3 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-sm shadow-lg shadow-teal-500/20 transition flex items-center justify-center gap-2">
-              <span>✨</span> 기존/신규 계약 비교분석 & 감액정보 통합 생성
+              <span>✨</span> 읽은 서류로 비교분석 & 감액정보 통합 생성
             </button>
             <div id="aiStatusBox" class="hidden p-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-teal-300 flex items-center gap-2">
               <div class="animate-spin h-4 w-4 border-2 border-teal-400 border-t-transparent rounded-full shrink-0"></div>
@@ -2050,6 +2050,7 @@
     if (savedApiKey) document.getElementById("apiKeyInput").value = savedApiKey;
     document.getElementById("apiKeyInput").addEventListener("change", function() {
       localStorage.setItem("GEMINI_BUILDER_API_KEY", this.value.trim());
+      kickParse();
     });
 
     // =========================================================================
@@ -2119,6 +2120,7 @@
           const j = await res.json();
           if (j && j.hasKey === true) {
             serverKey = { available: true, needsPasscode: !!j.needsPasscode, message: "" };
+            kickParse();
             setServerNote("ok", `✅ 서버(변수 및 시크릿)에 API 키가 있습니다 (${j.keyCount > 1 ? j.keyCount + "개 등록됨: 번갈아 사용" : (j.keyName || "GEMINI_API_KEY")}). 입력할 필요가 없습니다.${j.needsPasscode ? " (접속 암호 사용)" : ""}`);
             return;
           }
@@ -2274,9 +2276,50 @@
       Array.from(fileList || []).forEach(f => {
         const dup = uploadedFiles.some(u => u.file.name === f.name && u.file.size === f.size);
         if (dup) return;
-        uploadedFiles.push({ id: ++fileSeq, file: f, kind: "auto", status: "대기", pct: 0, ms: 0, msg: "", result: null });
+        uploadedFiles.push({ id: ++fileSeq, file: f, kind: "auto", status: "대기", pct: 0, ms: 0, msg: "", result: null, promise: null });
       });
       renderFileList();
+      kickParse();
+    }
+
+    // 동시에 읽는 파일 수를 제한하는 대기열 (자동 읽기와 통합 버튼이 같은 대기열을 씁니다)
+    let activeParses = 0;
+    const parseWaiters = [];
+    const acquireSlot = () => new Promise(resolve => {
+      const go = () => { activeParses++; resolve(); };
+      activeParses < PARSE_CONCURRENCY ? go() : parseWaiters.push(go);
+    });
+    const releaseSlot = () => { activeParses--; const next = parseWaiters.shift(); if (next) next(); };
+
+    // 파일 하나를 읽는 작업을 시작합니다. 이미 진행 중이면 그 작업을 그대로 돌려줍니다.
+    function startParse(item, apiKey, rawText) {
+      if (item.promise) return item.promise;
+      item.promise = (async () => {
+        item.msg = "순서 대기 중..."; renderFileList();
+        await acquireSlot();
+        try {
+          if (item.file && !uploadedFiles.includes(item)) return; // 대기 중에 삭제된 파일
+          await parseOneFile(item, apiKey, rawText);
+        } finally {
+          releaseSlot();
+          item.promise = null;
+        }
+      })();
+      return item.promise;
+    }
+
+    // 아직 안 읽은 파일을 자동으로 읽습니다. AI 연결이 없으면 조용히 기다렸다가 연결되면 읽습니다.
+    function kickParse() {
+      const apiKey = document.getElementById("apiKeyInput").value.trim();
+      const waiting = uploadedFiles.filter(u => u.status === "대기" && !u.promise);
+      if (waiting.length === 0) return;
+      if (!apiKey && !serverKey.available) {
+        waiting.forEach(u => { u.msg = "AI 연결(API 키) 확인 후 자동으로 읽습니다"; });
+        renderFileList();
+        return;
+      }
+      const rawText = document.getElementById("rawTextInput").value.trim();
+      waiting.forEach(u => startParse(u, apiKey, rawText));
     }
 
     function renderFileList() {
@@ -2539,12 +2582,11 @@ ${FILE_PARSE_SCHEMA}` });
         const todo = items.filter(u => !(u.status === "완료" && u.result));
         const t0 = performance.now();
         let finished = items.length - todo.length;
-        statusText.textContent = `1/2단계: 파일별 읽기 (${finished}/${items.length})`;
-        await runPool(todo, PARSE_CONCURRENCY, async (u) => {
-          await parseOneFile(u, apiKey, rawText);
+        statusText.textContent = todo.length ? `1/2단계: 파일별 읽기 (${finished}/${items.length})` : "1/2단계: 이미 읽은 파일 사용";
+        await Promise.all(todo.map(u => startParse(u, apiKey, rawText).then(() => {
           finished++;
           statusText.textContent = `1/2단계: 파일별 읽기 (${finished}/${items.length})`;
-        });
+        })));
 
         const okItems = items.filter(u => u.status === "완료" && u.result);
         const failed = items.filter(u => u.status === "실패");
