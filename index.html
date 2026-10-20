@@ -99,6 +99,11 @@
             <p class="text-[11px] text-slate-400 leading-relaxed">
               * API 키는 설계사님의 컴퓨터에만 안전하게 저장되며 고객 파일에 포함되지 않습니다.
             </p>
+            <div class="flex items-center gap-2">
+              <label for="modelInput" class="text-[11px] text-slate-400 shrink-0">Gemini 모델</label>
+              <input id="modelInput" type="text" class="flex-1 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-[11px] text-white focus:outline-none focus:border-teal-500" />
+            </div>
+            <p class="text-[10px] text-slate-500">모델명이 없다는 오류가 나면 사용 가능한 flash 모델로 자동 전환됩니다.</p>
           </div>
 
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
@@ -599,10 +604,241 @@
     // =========================================================================
     // 고객용 HTML 템플릿 (기존/신규 계약 체크박스, 상세페이지, 비교표, 감액기간 완벽 포함)
     // =========================================================================
+        // =========================================================================
+    // 고객용 리포트의 [현황·신호등] 탭 렌더러.
+    // generateClientHtml 안에 renderStatusViews.toString()으로 그대로 삽입되어
+    // 고객 화면에서 실행됩니다. (parseNum 은 고객 화면 스크립트에 정의되어 있음)
+    // =========================================================================
+    function renderStatusViews(DATA, existingList, proposedList) {
+      const root = document.getElementById("statusRoot");
+      if (!root) return;
+
+      const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const won = (n) => (n > 0 ? Math.round(n).toLocaleString() + "원" : "0원");
+      const fmt = (v) => {
+        if (!v || v <= 0) return "미가입";
+        if (v >= 10000) {
+          const eok = Math.floor(v / 10000), man = Math.round(v % 10000);
+          return man > 0 ? eok + "억 " + man.toLocaleString() + "만원" : eok + "억원";
+        }
+        return Math.round(v).toLocaleString() + "만원";
+      };
+
+      // 업계 일반 권장 기준(만원). DATA.recommended 로 덮어쓸 수 있음 (참고용 기준)
+      const REC = Object.assign({ "일반암": 5000, "유사암": 1000, "뇌혈관": 3000, "허혈": 3000, "수술": 500, "입원": 5, "1인실": 10, "골절": 100 }, DATA.recommended || {});
+      const CATS = [
+        { key: "일반암", label: "암 진단비 (일반암)" },
+        { key: "유사암", label: "유사암 진단비" },
+        { key: "뇌혈관", label: "뇌혈관질환 진단비" },
+        { key: "허혈", label: "허혈심장질환 진단비" },
+        { key: "수술", label: "질병/상해 수술비" },
+        { key: "입원", label: "질병입원일당 (1일)" },
+        { key: "1인실", label: "상급종합 1인실/간병일당" },
+        { key: "골절", label: "골절 진단비" }
+      ];
+
+      const amountOf = (r) => parseNum(r.amountManwon !== undefined ? r.amountManwon : r.amount);
+      const sumBy = (list, key) => {
+        let t = 0;
+        list.forEach((c) => {
+          if (!c.checked) return;
+          (c.riders || []).forEach((r) => {
+            if (r.checked && (String(r.cat) + " " + String(r.name)).includes(key)) t += amountOf(r);
+          });
+        });
+        return t;
+      };
+
+      const LIGHT = {
+        green: { dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500", emoji: "🟢" },
+        yellow: { dot: "bg-amber-400", chip: "bg-amber-50 text-amber-700 border-amber-200", bar: "bg-amber-400", emoji: "🟡" },
+        red: { dot: "bg-rose-500", chip: "bg-rose-50 text-rose-700 border-rose-200", bar: "bg-rose-500", emoji: "🔴" }
+      };
+      const judge = (cur, rec) => {
+        if (cur <= 0) return { color: "red", text: "미가입" };
+        const p = cur / rec;
+        if (p >= 1) return { color: "green", text: "충분" };
+        if (p >= 0.5) return { color: "yellow", text: "보완 권장" };
+        return { color: "red", text: "부족" };
+      };
+
+      const rows = CATS.map((cat) => {
+        const ex = sumBy(existingList, cat.key);
+        const pr = sumBy(proposedList, cat.key);
+        const total = ex + pr;
+        const rec = REC[cat.key] || 0;
+        const j = judge(total, rec);
+        const pct = rec ? Math.round((total / rec) * 100) : 0;
+        // 신규 담보 중 감액/면책 조건이 있는 첫 항목을 안내
+        let reduction = "";
+        proposedList.forEach((c) => {
+          if (!c.checked || reduction) return;
+          (c.riders || []).forEach((r) => {
+            if (!reduction && r.checked && (String(r.cat) + " " + String(r.name)).includes(cat.key) && r.reductionPeriod && !/없음|즉시/.test(r.reductionPeriod)) reduction = r.reductionPeriod;
+          });
+        });
+        return { cat, ex, pr, total, rec, j, pct, reduction };
+      });
+      const count = { green: 0, yellow: 0, red: 0 };
+      rows.forEach((r) => count[r.j.color]++);
+
+      // ---- 0. 보험 신호등 ----
+      const trafficHtml = `
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+          <div>
+            <span class="px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-[11px] font-extrabold">🚦 보험 신호등</span>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-1">선택한 계약 기준 보장 점검</h3>
+            <p class="text-[11px] text-slate-500 mt-0.5">🟢 권장 이상 · 🟡 권장의 50% 이상 · 🔴 50% 미만/미가입 (업계 일반 기준, 참고용)</p>
+          </div>
+          <div class="grid grid-cols-3 gap-2 text-center">
+            <div class="rounded-xl bg-emerald-50 border border-emerald-200 py-2"><p class="text-lg font-black text-emerald-700">${count.green}</p><p class="text-[10px] font-bold text-emerald-700">충분</p></div>
+            <div class="rounded-xl bg-amber-50 border border-amber-200 py-2"><p class="text-lg font-black text-amber-600">${count.yellow}</p><p class="text-[10px] font-bold text-amber-700">보완 권장</p></div>
+            <div class="rounded-xl bg-rose-50 border border-rose-200 py-2"><p class="text-lg font-black text-rose-600">${count.red}</p><p class="text-[10px] font-bold text-rose-700">부족/미가입</p></div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            ${rows.map((r) => `
+              <div class="flex items-center gap-2 rounded-xl border ${LIGHT[r.j.color].chip} px-2.5 py-2">
+                <span class="w-3 h-3 rounded-full ${LIGHT[r.j.color].dot} shrink-0"></span>
+                <div class="min-w-0">
+                  <p class="text-[11px] font-extrabold truncate">${esc(r.cat.label)}</p>
+                  <p class="text-[10px]">${r.j.text} · ${fmt(r.total)}</p>
+                </div>
+              </div>`).join("")}
+          </div>
+        </div>`;
+
+      // ---- 1. 계약현황 요약 ----
+      const exChecked = existingList.filter((c) => c.checked);
+      const prChecked = proposedList.filter((c) => c.checked);
+      const exPrem = exChecked.reduce((s, c) => s + parseNum(c.premium), 0);
+      const prPrem = prChecked.reduce((s, c) => s + parseNum(c.premium), 0);
+      const riderCnt = [...exChecked, ...prChecked].reduce((s, c) => s + (c.riders || []).filter((r) => r.checked).length, 0);
+      const byCompany = {};
+      [...exChecked, ...prChecked].forEach((c) => {
+        const k = c.company || "기타";
+        byCompany[k] = (byCompany[k] || 0) + parseNum(c.premium);
+      });
+      const companies = Object.keys(byCompany);
+      const summaryHtml = `
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+          <div>
+            <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold">계약현황 요약</span>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">한눈에 보는 계약 구성</h3>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div class="rounded-xl bg-slate-50 border border-slate-200 p-3"><p class="text-[10px] text-slate-500">기존 계약</p><p class="text-base font-black text-slate-900">${exChecked.length}<span class="text-xs font-bold text-slate-500">/${existingList.length}건</span></p><p class="text-[11px] text-slate-600">${won(exPrem)}/월</p></div>
+            <div class="rounded-xl bg-teal-50 border border-teal-200 p-3"><p class="text-[10px] text-teal-700">신규 제안</p><p class="text-base font-black text-teal-800">${prChecked.length}<span class="text-xs font-bold text-teal-600">/${proposedList.length}건</span></p><p class="text-[11px] text-teal-700">${won(prPrem)}/월</p></div>
+            <div class="rounded-xl bg-slate-900 p-3"><p class="text-[10px] text-slate-300">월 보험료 합계</p><p class="text-base font-black text-teal-300">${won(exPrem + prPrem)}</p></div>
+            <div class="rounded-xl bg-slate-50 border border-slate-200 p-3"><p class="text-[10px] text-slate-500">선택 담보 / 보험사</p><p class="text-base font-black text-slate-900">${riderCnt}개 <span class="text-xs font-bold text-slate-500">/ ${companies.length}개사</span></p></div>
+          </div>
+          ${companies.length ? `
+            <div class="space-y-1">
+              <p class="text-[11px] font-bold text-slate-500">보험사별 월 보험료</p>
+              ${companies.map((k) => `<div class="flex items-center justify-between text-xs bg-slate-50 rounded-lg px-3 py-1.5 border border-slate-100"><span class="font-semibold text-slate-700">${esc(k)}</span><span class="font-extrabold text-slate-900">${won(byCompany[k])}</span></div>`).join("")}
+            </div>` : ""}
+        </div>`;
+
+      // ---- 2. 보유 계약현황 ----
+      const holdHtml = `
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+          <div>
+            <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold">보유 계약현황</span>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">현재 가입 중인 계약</h3>
+          </div>
+          ${existingList.length === 0 ? `<div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-400 text-center">등록된 기존 계약이 없습니다.</div>` : `
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-[11px]">
+              <thead><tr class="bg-slate-100 text-slate-600 font-extrabold">
+                <th class="py-2 px-2 rounded-tl-lg">보험사 / 상품</th><th class="py-2 px-2">계약일</th><th class="py-2 px-2">납입/만기</th><th class="py-2 px-2 text-right">월 보험료</th><th class="py-2 px-2 text-center rounded-tr-lg">담보</th>
+              </tr></thead>
+              <tbody class="divide-y divide-slate-100">
+                ${existingList.map((c) => `
+                  <tr class="${c.checked ? "" : "opacity-40"}">
+                    <td class="py-2 px-2"><p class="font-extrabold text-slate-900">${esc(c.productName || "보유 계약")}</p><p class="text-[10px] text-slate-500">${esc(c.company)}${c.status ? " · " + esc(c.status) : ""}</p></td>
+                    <td class="py-2 px-2 text-slate-600 whitespace-nowrap">${esc(c.contractDate || "-")}</td>
+                    <td class="py-2 px-2 text-slate-600">${esc(c.period || "-")}</td>
+                    <td class="py-2 px-2 text-right font-extrabold text-slate-900 whitespace-nowrap">${esc(c.premium || "-")}</td>
+                    <td class="py-2 px-2 text-center font-bold text-slate-700">${(c.riders || []).length}</td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>`}
+        </div>`;
+
+      // ---- 3. 담보별 진단현황 ----
+      const diagHtml = `
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+          <div>
+            <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-200">담보별 진단현황</span>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">주요 담보 기존 · 신규 · 합산</h3>
+          </div>
+          <div class="space-y-2.5">
+            ${rows.map((r) => `
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs font-extrabold text-slate-800 flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full ${LIGHT[r.j.color].dot}"></span>${esc(r.cat.label)}</span>
+                  <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${LIGHT[r.j.color].chip}">${r.j.text}</span>
+                </div>
+                <div class="grid grid-cols-3 gap-1 text-center text-[10px]">
+                  <div class="bg-white rounded-lg py-1 border border-slate-100"><p class="text-slate-400">기존</p><p class="font-bold text-slate-700">${fmt(r.ex)}</p></div>
+                  <div class="bg-white rounded-lg py-1 border border-slate-100"><p class="text-teal-600">+ 신규</p><p class="font-bold text-teal-700">${r.pr > 0 ? fmt(r.pr) : "-"}</p></div>
+                  <div class="bg-slate-900 rounded-lg py-1"><p class="text-slate-300">합산</p><p class="font-black text-white">${fmt(r.total)}</p></div>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden"><div class="${LIGHT[r.j.color].bar} h-1.5 rounded-full" style="width:${Math.min(100, r.pct)}%"></div></div>
+                <div class="flex items-center justify-between text-[10px] text-slate-500"><span>권장 ${fmt(r.rec)}</span><span>준비율 ${r.pct}%</span></div>
+                ${r.reduction ? `<p class="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">⏳ 신규 담보 감액/면책: ${esc(r.reduction)}</p>` : ""}
+              </div>`).join("")}
+          </div>
+        </div>`;
+
+      // ---- 4. 상품별 가입담보 상세 ----
+      const detailCard = (c, isNew) => `
+        <details class="rounded-xl border ${isNew ? "border-teal-300" : "border-slate-200"} bg-white overflow-hidden ${c.checked ? "" : "opacity-50"}">
+          <summary class="cursor-pointer px-3 py-2.5 flex items-center justify-between gap-2 ${isNew ? "bg-teal-50/60" : "bg-slate-50"}">
+            <div class="min-w-0">
+              <span class="px-1.5 py-0.5 rounded ${isNew ? "bg-teal-600 text-white" : "bg-slate-200 text-slate-700"} text-[10px] font-bold">${isNew ? "신규" : "기존"} · ${esc(c.company || "-")}</span>
+              <p class="text-xs font-extrabold text-slate-900 truncate mt-0.5">${esc(c.productName || "상품")}</p>
+            </div>
+            <div class="text-right shrink-0"><p class="text-xs font-black ${isNew ? "text-teal-700" : "text-slate-800"}">${esc(c.premium || "-")}</p><p class="text-[10px] text-slate-500">담보 ${(c.riders || []).length}개 ▾</p></div>
+          </summary>
+          <div class="overflow-x-auto border-t border-slate-100">
+            <table class="w-full text-left border-collapse text-[11px]">
+              <thead><tr class="bg-slate-50 text-slate-500 font-bold"><th class="py-1.5 px-2">담보명</th><th class="py-1.5 px-2 text-right">가입금액</th><th class="py-1.5 px-2">감액/면책</th></tr></thead>
+              <tbody class="divide-y divide-slate-100">
+                ${(c.riders || []).map((r) => `
+                  <tr class="${r.checked ? "" : "opacity-40 line-through"}">
+                    <td class="py-1.5 px-2"><span class="text-[9px] font-bold text-slate-400">[${esc(r.cat || "기타")}]</span><p class="font-bold text-slate-800">${esc(r.name)}</p>${r.riderPrem ? `<p class="text-[9px] text-slate-400">보험료 ${esc(r.riderPrem)}</p>` : ""}</td>
+                    <td class="py-1.5 px-2 text-right font-extrabold text-slate-900 whitespace-nowrap">${esc(r.amount)}</td>
+                    <td class="py-1.5 px-2 text-slate-600">${esc(r.reductionPeriod || "-")}${r.reductionAmount ? `<p class="text-[10px] text-amber-700 font-bold">${esc(r.reductionAmount)}</p>` : ""}</td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>
+        </details>`;
+      const productHtml = `
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+          <div>
+            <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold">상품별 가입담보 상세</span>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">상품을 눌러 담보 내역 보기</h3>
+          </div>
+          <div class="space-y-2">
+            ${existingList.length + proposedList.length === 0 ? `<div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-400 text-center">등록된 계약이 없습니다.</div>` : ""}
+            ${existingList.map((c) => detailCard(c, false)).join("")}
+            ${proposedList.map((c) => detailCard(c, true)).join("")}
+          </div>
+        </div>`;
+
+      // 펼침 상태 유지 (체크박스를 눌러 다시 그려도 열어둔 상품은 그대로)
+      const opened = Array.from(root.querySelectorAll("details")).map((d) => d.open);
+      root.innerHTML = trafficHtml + summaryHtml + holdHtml + diagHtml + productHtml;
+      root.querySelectorAll("details").forEach((d, i) => { if (opened[i]) d.open = true; });
+    }
+
     function generateClientHtml(data) {
       const safeData = JSON.parse(JSON.stringify(data));
       delete safeData.scripts;
       delete safeData.scriptPrompts;
+      delete safeData.fileResults;
 
       const safeJson = JSON.stringify(safeData).replace(/<\//g, '<\\/');
       const displayClient = safeData.clientName || "고객";
@@ -643,6 +879,9 @@
     }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .nav-btn { flex: 1 0 auto; padding-left: 0.65rem; padding-right: 0.65rem; white-space: nowrap; }
+    details > summary { list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
 
     @media print {
       body { background-color: #fff !important; color: #000 !important; }
@@ -714,7 +953,7 @@
 
     <!-- Navigation Tabs (5개 탭으로 확장: 보장분석 / 계약·비교 / 상황예시 / 일당계산 / 특약·감액) -->
     <div class="sticky top-[49px] z-30 bg-white border-b border-slate-200 px-2.5 py-2 shadow-sm nav-tabs-bar no-print">
-      <div class="grid grid-cols-5 gap-1 bg-slate-100 p-1 rounded-xl text-center">
+      <div class="flex gap-1 bg-slate-100 p-1 rounded-xl text-center overflow-x-auto no-scrollbar">
         <button data-view="view-report" class="nav-btn py-2 rounded-lg text-[11px] font-extrabold bg-slate-900 text-white shadow transition">
           📊 보장분석
         </button>
@@ -729,6 +968,9 @@
         </button>
         <button data-view="view-riders" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           📋 특약·감액
+        </button>
+        <button data-view="view-status" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
+          🚦 현황·신호등
         </button>
       </div>
     </div>
@@ -848,6 +1090,11 @@
         </div>
       </div>
 
+    </section>
+
+    <!-- VIEW: 현황·신호등 (계약현황 요약 / 보유계약 / 담보별 진단 / 신호등 / 상품별 담보) -->
+    <section id="view-status" class="view-section hidden p-4 space-y-4">
+      <div id="statusRoot" class="space-y-4"></div>
     </section>
 
     <!-- VIEW 2: Scenarios -->
@@ -1396,7 +1643,9 @@
       }).join("");
 
       tbody.innerHTML = rowsHtml;
+      renderStatusViews(DATA, existingList, proposedList);
     }
+    ${renderStatusViews.toString()}
     renderCompareView();
 
     // =========================================================================
@@ -1801,30 +2050,217 @@
       localStorage.setItem("GEMINI_BUILDER_API_KEY", this.value.trim());
     });
 
-    document.getElementById("fileInput").addEventListener("change", async function(e) {
-      uploadedFiles = Array.from(e.target.files || []);
-      const listEl = document.getElementById("fileListDisplay");
-      if (uploadedFiles.length === 0) {
-        listEl.classList.add("hidden");
-        return;
-      }
-      listEl.classList.remove("hidden");
-      listEl.innerHTML = uploadedFiles.map((f, idx) => `
-        <div class="px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-teal-300 flex items-center justify-between">
-          <span class="truncate">📄 [${idx + 1}/${uploadedFiles.length}] ${f.name}</span>
-          <span class="text-[10px] text-slate-400 shrink-0 ml-2">${(f.size / 1024).toFixed(1)} KB</span>
-        </div>
-      `).join("");
-    });
+    // =========================================================================
+    // Gemini 공통 호출 (재시도 + 모델 자동 대체) / 파일 준비 / 병렬 파싱
+    // =========================================================================
+    const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
+    const MAX_FILE_BYTES = 18 * 1024 * 1024;
+    const PARSE_CONCURRENCY = 3;
+    let activeModel = localStorage.getItem("GEMINI_BUILDER_MODEL") || DEFAULT_GEMINI_MODEL;
 
-    function fileToBase64(file) {
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const escHtml = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+    function parseJsonLoose(text) {
+      const cleaned = String(text || "").replace(/```json|```/g, "").trim();
+      try { return JSON.parse(cleaned); } catch (e) { /* 아래에서 { } 범위만 재시도 */ }
+      const s = cleaned.indexOf("{"), e = cleaned.lastIndexOf("}");
+      if (s >= 0 && e > s) return JSON.parse(cleaned.slice(s, e + 1));
+      throw new Error("AI 응답을 JSON으로 읽지 못했습니다.");
+    }
+
+    // "3,000만원", "1억 5천만원", "100만원/일" → 만원 단위 숫자
+    function toManwon(v) {
+      if (typeof v === "number") return v;
+      const s = String(v || "").replace(/,/g, "");
+      let total = 0, m;
+      if ((m = s.match(/([0-9.]+)\s*억/))) total += parseFloat(m[1]) * 10000;
+      if ((m = s.match(/([0-9.]+)\s*천\s*만/))) total += parseFloat(m[1]) * 1000;
+      else if ((m = s.match(/([0-9.]+)\s*만/))) total += parseFloat(m[1]);
+      if (!total && (m = s.match(/([0-9.]+)\s*원/))) total = parseFloat(m[1]) / 10000;
+      if (!total) { const n = parseFloat(s.replace(/[^0-9.]/g, "")); total = isNaN(n) ? 0 : n; }
+      return total;
+    }
+
+    async function pickFallbackModel(apiKey) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`);
+      const json = await res.json();
+      const names = (json.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+        .map(m => m.name.replace("models/", ""));
+      const stable = names.filter(n => /flash/.test(n) && !/(lite|image|tts|live|thinking|exp|preview|audio|latest)/.test(n)).sort().reverse();
+      return stable[0] || names.find(n => /flash/.test(n)) || null;
+    }
+
+    async function callGemini(apiKey, parts) {
+      const body = JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
+      });
+      let lastErr = null, triedFallback = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        let res;
+        const usedModel = activeModel;
+        try {
+          res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${usedModel}:generateContent?key=${apiKey}`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body
+          });
+        } catch (err) {
+          lastErr = err;
+          await sleep(1000 * (attempt + 1));
+          continue;
+        }
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && !json.error) {
+          const text = (json.candidates?.[0]?.content?.parts || []).map(p => p.text || "").join("");
+          return parseJsonLoose(text);
+        }
+        const msg = json.error?.message || `HTTP ${res.status}`;
+        if (res.status === 404 && usedModel !== activeModel) continue; // 다른 요청이 이미 모델을 바꿨으면 바뀐 모델로 재시도
+        if (res.status === 404 && !triedFallback) {
+          triedFallback = true;
+          const alt = await pickFallbackModel(apiKey).catch(() => null);
+          if (alt && alt !== usedModel) {
+            activeModel = alt;
+            localStorage.setItem("GEMINI_BUILDER_MODEL", alt);
+            const mi = document.getElementById("modelInput");
+            if (mi) mi.value = alt;
+            continue;
+          }
+        }
+        if ([429, 500, 503].includes(res.status)) {
+          lastErr = new Error(msg);
+          await sleep(1500 * (attempt + 1));
+          continue;
+        }
+        throw new Error(msg);
+      }
+      throw lastErr || new Error("Gemini 호출에 실패했습니다.");
+    }
+
+    function fileToBase64(fileOrBlob) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result.split(",")[1]);
         reader.onerror = reject;
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(fileOrBlob);
       });
     }
+
+    // 큰 사진은 긴 변 2200px JPEG로 줄여 업로드 시간과 응답 시간을 줄입니다.
+    async function prepareFile(file) {
+      if (file.size > MAX_FILE_BYTES) throw new Error(`파일이 너무 큽니다 (${(file.size / 1048576).toFixed(1)}MB, 최대 18MB)`);
+      if (file.type.startsWith("image/") && file.size > 1.5 * 1048576) {
+        try {
+          const bmp = await createImageBitmap(file);
+          const scale = Math.min(1, 2200 / Math.max(bmp.width, bmp.height));
+          const c = document.createElement("canvas");
+          c.width = Math.round(bmp.width * scale);
+          c.height = Math.round(bmp.height * scale);
+          c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+          const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.85));
+          if (blob && blob.size < file.size) return { b64: await fileToBase64(blob), mime: "image/jpeg", note: "이미지 최적화" };
+        } catch (e) { /* 원본 그대로 사용 */ }
+      }
+      return { b64: await fileToBase64(file), mime: file.type || "application/pdf", note: "" };
+    }
+
+    async function runPool(items, limit, worker) {
+      let next = 0;
+      const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (next < items.length) {
+          const item = items[next++];
+          await worker(item);
+        }
+      });
+      await Promise.all(runners);
+    }
+
+    // =========================================================================
+    // 업로드 파일 목록 (파일별 상태 / 진행 / 인식 결과)
+    // =========================================================================
+    const KIND_LABEL = { existing: "기존 증권", proposed: "신규 설계서", unknown: "구분 불명" };
+    let fileSeq = 0;
+
+    function addFiles(fileList) {
+      Array.from(fileList || []).forEach(f => {
+        const dup = uploadedFiles.some(u => u.file.name === f.name && u.file.size === f.size);
+        if (dup) return;
+        uploadedFiles.push({ id: ++fileSeq, file: f, kind: "auto", status: "대기", pct: 0, ms: 0, msg: "", result: null });
+      });
+      renderFileList();
+    }
+
+    function renderFileList() {
+      const listEl = document.getElementById("fileListDisplay");
+      if (uploadedFiles.length === 0) {
+        listEl.classList.add("hidden");
+        listEl.innerHTML = "";
+        return;
+      }
+      listEl.classList.remove("hidden");
+      const busy = uploadedFiles.some(u => u.status === "읽는 중");
+      listEl.innerHTML = uploadedFiles.map((u, idx) => {
+        const badge = {
+          "대기": "bg-slate-700 text-slate-300",
+          "읽는 중": "bg-amber-500/20 text-amber-300",
+          "완료": "bg-teal-500/20 text-teal-300",
+          "실패": "bg-rose-500/20 text-rose-300"
+        }[u.status];
+        const r = u.result;
+        const effKind = u.kind !== "auto" ? u.kind : (r?.docType || "unknown");
+        const summary = u.status === "완료" && r
+          ? `${KIND_LABEL[effKind] || "구분 불명"} · 계약 ${r.contractCount}건 · 담보 ${r.riderCount}개${r.pageCount ? " · " + r.pageCount + "쪽" : ""}${r.confidence ? " · 확신도 " + r.confidence + "%" : ""} · ${(u.ms / 1000).toFixed(1)}초`
+          : (u.status === "실패" ? escHtml(u.msg) : (u.msg ? escHtml(u.msg) : ""));
+        return `
+          <div class="p-2.5 rounded-xl bg-slate-950 border ${u.status === "실패" ? "border-rose-500/50" : "border-slate-700"} space-y-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="truncate text-xs text-teal-300">📄 [${idx + 1}/${uploadedFiles.length}] ${escHtml(u.file.name)}</span>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <span class="text-[10px] text-slate-400">${(u.file.size / 1024).toFixed(1)} KB</span>
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${badge}">${u.status}</span>
+                <button ${busy ? "disabled" : ""} onclick="removeFile(${u.id})" class="text-slate-500 hover:text-rose-400 text-xs disabled:opacity-30">✕</button>
+              </div>
+            </div>
+            <div class="w-full h-1 rounded-full bg-slate-800 overflow-hidden">
+              <div class="h-1 rounded-full ${u.status === "실패" ? "bg-rose-500" : "bg-teal-400"} transition-all" style="width:${u.pct}%"></div>
+            </div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] ${u.status === "실패" ? "text-rose-300" : "text-slate-400"} truncate">${summary || "분석 대기 중"}</span>
+              <select ${busy ? "disabled" : ""} onchange="setFileKind(${u.id}, this.value)" class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] text-slate-300 shrink-0">
+                <option value="auto" ${u.kind === "auto" ? "selected" : ""}>자동 구분</option>
+                <option value="existing" ${u.kind === "existing" ? "selected" : ""}>기존 증권</option>
+                <option value="proposed" ${u.kind === "proposed" ? "selected" : ""}>신규 설계서</option>
+              </select>
+            </div>
+          </div>`;
+      }).join("");
+    }
+
+    window.removeFile = function (id) {
+      uploadedFiles = uploadedFiles.filter(u => u.id !== id);
+      renderFileList();
+    };
+    window.setFileKind = function (id, kind) {
+      const u = uploadedFiles.find(x => x.id === id);
+      if (u) { u.kind = kind; renderFileList(); }
+    };
+
+    document.getElementById("fileInput").addEventListener("change", function (e) {
+      addFiles(e.target.files);
+      this.value = "";
+    });
+    const dropZone = document.querySelector('label[for="fileInput"]');
+    ["dragenter", "dragover"].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add("border-teal-400"); }));
+    ["dragleave", "drop"].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove("border-teal-400"); }));
+    dropZone.addEventListener("drop", e => addFiles(e.dataTransfer?.files));
+
+    const modelInputEl = document.getElementById("modelInput");
+    modelInputEl.value = activeModel;
+    modelInputEl.addEventListener("change", function () {
+      activeModel = this.value.trim() || DEFAULT_GEMINI_MODEL;
+      localStorage.setItem("GEMINI_BUILDER_MODEL", activeModel);
+    });
 
     // 5대 제안 대사만 갱신
     document.getElementById("btnRegenerateScripts").addEventListener("click", async () => {
@@ -1861,17 +2297,7 @@ ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
 }`;
 
       try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: "application/json" }
-          })
-        });
-        const json = await res.json();
-        const text = json.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-        const parsed = JSON.parse(text);
+        const parsed = await callGemini(apiKey, [{ text: prompt }]);
 
         currentData.scripts = parsed;
         saveToHistory(currentData);
@@ -1882,7 +2308,128 @@ ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
       }
     });
 
-    // 전체 다중 서류 통합 분석 (기존계약/신규계약 분리, 담보별 감액기간/감액금액 포함)
+    // =========================================================================
+    // 1단계: 파일별 파싱 / 2단계: 통합 분석 (부족보장·시나리오·대사)
+    // =========================================================================
+    const FILE_PARSE_SCHEMA = `{
+  "docType": "existing | proposed | unknown",
+  "confidence": 0~100 숫자 (이 파일을 정확히 읽었다고 보는 정도),
+  "pageCount": 읽은 페이지 수,
+  "customer": { "name": "고객(계약자) 이름", "insuredName": "피보험자", "birth": "생년월일 또는 나이" },
+  "contracts": [
+    {
+      "company": "보험사명",
+      "productName": "상품명",
+      "premium": "월 보험료 (예: 85,000원)",
+      "period": "납입기간/만기 (예: 20년납 80세만기)",
+      "contractDate": "계약일 (YYYY-MM-DD, 모르면 빈 문자열)",
+      "status": "정상 | 실효 | 만기 | 신규제안 등 상태",
+      "riders": [
+        {
+          "cat": "일반암 | 유사암 | 뇌혈관 | 허혈 | 수술 | 입원 | 1인실 | 골절 | 기타 중 택1",
+          "name": "담보(특약)명",
+          "amount": "가입금액 표시 (예: 3,000만원)",
+          "amountManwon": 만원 단위 숫자 (예: 3000),
+          "riderPrem": "담보별 보험료 (모르면 빈 문자열)",
+          "reductionPeriod": "면책/감액기간 (예: 90일 면책 / 1년 미만 50% 감액, 없으면 '감액 없음(즉시 100%)')",
+          "reductionAmount": "감액기간 중 지급액 (예: 2,500만원 (50%))"
+        }
+      ]
+    }
+  ],
+  "notes": "읽기 어려웠거나 확인이 필요한 부분 (없으면 빈 문자열)"
+}`;
+
+    async function parseOneFile(item, apiKey, rawText) {
+      const t0 = performance.now();
+      item.status = "읽는 중"; item.pct = 10; item.msg = "파일 준비 중..."; renderFileList();
+      try {
+        const parts = [];
+        if (item.file) {
+          const prepared = await prepareFile(item.file);
+          item.pct = 35; item.msg = prepared.note ? `AI가 읽는 중... (${prepared.note})` : "AI가 읽는 중..."; renderFileList();
+          parts.push({ inlineData: { mimeType: prepared.mime, data: prepared.b64 } });
+        }
+        const hint = item.kind === "existing" ? "이 파일은 고객이 이미 가입한 '기존 보험증권/계약현황'입니다."
+          : item.kind === "proposed" ? "이 파일은 새로 제안하는 '신규 가입설계서'입니다." : "";
+        parts.push({ text: `당신은 보험 서류 판독 전문가입니다. ${item.file ? "첨부된 1개 파일의 모든 페이지를 끝까지" : "아래 텍스트를"} 읽고 서류에 적힌 사실만 추출하세요.
+- 서류에 없는 값은 빈 문자열로 두고 절대 지어내지 마세요.
+- 계약(상품)별로 contracts 배열에 하나씩 넣고, 담보는 빠짐없이 riders에 넣으세요.
+- docType: 이미 가입한 계약의 증권/현황이면 existing, 새로 제안하는 설계서면 proposed, 판단이 어려우면 unknown.
+- cat 또는 name에 '일반암','유사암','뇌혈관','허혈','수술','입원','1인실','골절' 키워드가 해당될 때 반드시 포함하고, amountManwon은 만원 단위 숫자로 쓰세요.
+${hint}
+${!item.file ? "[입력 텍스트]\n" + rawText : (rawText ? "[설계사 참고 메모]\n" + rawText : "")}
+
+반드시 아래 JSON 구조로만 응답하세요:
+${FILE_PARSE_SCHEMA}` });
+        const out = await callGemini(apiKey, parts);
+        item.pct = 100;
+        const contracts = Array.isArray(out.contracts) ? out.contracts : [];
+        item.result = {
+          docType: ["existing", "proposed", "unknown"].includes(out.docType) ? out.docType : "unknown",
+          confidence: Math.round(Number(out.confidence) || 0),
+          pageCount: Number(out.pageCount) || 0,
+          customer: out.customer || {},
+          contracts,
+          notes: out.notes || "",
+          contractCount: contracts.length,
+          riderCount: contracts.reduce((n, c) => n + (Array.isArray(c.riders) ? c.riders.length : 0), 0)
+        };
+        item.status = "완료"; item.msg = "";
+      } catch (err) {
+        item.status = "실패"; item.pct = 100; item.msg = err.message || String(err);
+      } finally {
+        item.ms = performance.now() - t0;
+        renderFileList();
+      }
+    }
+
+    function normalizeContract(c, prefix, idx) {
+      const riders = (Array.isArray(c.riders) ? c.riders : []).map((r, i) => {
+        const manwon = Number(r.amountManwon) > 0 ? Number(r.amountManwon) : toManwon(r.amount);
+        return {
+          cat: r.cat || "기타", name: r.name || "", amount: r.amount || (manwon ? manwon.toLocaleString() + "만원" : ""),
+          amountManwon: manwon, riderPrem: r.riderPrem || "",
+          reductionPeriod: r.reductionPeriod || "", reductionAmount: r.reductionAmount || "",
+          checked: true
+        };
+      });
+      return {
+        id: `${prefix}_${idx}`, company: c.company || "", productName: c.productName || "", premium: c.premium || "",
+        period: c.period || "", contractDate: c.contractDate || "", status: c.status || "", riders, checked: true
+      };
+    }
+
+    function mergeParsedFiles(items) {
+      const existing = [], proposed = [], seen = new Set();
+      const customer = { name: "", insuredName: "", birth: "" };
+      items.forEach(u => {
+        const r = u.result;
+        if (!r) return;
+        ["name", "insuredName", "birth"].forEach(k => { if (!customer[k] && r.customer?.[k]) customer[k] = r.customer[k]; });
+        const kind = u.kind !== "auto" ? u.kind : r.docType;
+        r.contracts.forEach(c => {
+          const key = [kind === "existing" ? "E" : "P", c.company, c.productName, c.premium].join("|");
+          if (seen.has(key)) return;
+          seen.add(key);
+          (kind === "existing" ? existing : proposed).push(c);
+        });
+      });
+      return {
+        customer,
+        existingContracts: existing.map((c, i) => normalizeContract(c, "ex", i)),
+        proposedContracts: proposed.map((c, i) => normalizeContract(c, "pr", i))
+      };
+    }
+
+    // 계약 요약(토큰 절약)을 만들어 2단계 분석에 넘깁니다.
+    function compactContracts(list) {
+      return list.map(c => ({
+        company: c.company, productName: c.productName, premium: c.premium, period: c.period,
+        riders: c.riders.map(r => `${r.cat}|${r.name}|${r.amount}|${r.reductionPeriod}`)
+      }));
+    }
+
     document.getElementById("btnAnalyzeAi").addEventListener("click", async () => {
       const apiKey = document.getElementById("apiKeyInput").value.trim();
       if (!apiKey) {
@@ -1898,31 +2445,42 @@ ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
       }
 
       syncInputsToData();
+      const btn = document.getElementById("btnAnalyzeAi");
       const statusBox = document.getElementById("aiStatusBox");
+      const statusText = document.getElementById("aiStatusText");
       statusBox.classList.remove("hidden");
+      btn.disabled = true; btn.classList.add("opacity-60");
 
       try {
-        const parts = [];
-        for (let i = 0; i < uploadedFiles.length; i++) {
-          const file = uploadedFiles[i];
-          const b64 = await fileToBase64(file);
-          parts.push({
-            inlineData: {
-              mimeType: file.type || "application/pdf",
-              data: b64
-            }
-          });
+        // ---- 1단계: 파일별 병렬 파싱 (이미 완료된 파일은 재사용) ----
+        const items = uploadedFiles.length ? uploadedFiles : [{ id: "text", file: null, kind: "auto", status: "대기", pct: 0, ms: 0, msg: "", result: null }];
+        const todo = items.filter(u => !(u.status === "완료" && u.result));
+        const t0 = performance.now();
+        let finished = items.length - todo.length;
+        statusText.textContent = `1/2단계: 파일별 읽기 (${finished}/${items.length})`;
+        await runPool(todo, PARSE_CONCURRENCY, async (u) => {
+          await parseOneFile(u, apiKey, rawText);
+          finished++;
+          statusText.textContent = `1/2단계: 파일별 읽기 (${finished}/${items.length})`;
+        });
+
+        const okItems = items.filter(u => u.status === "완료" && u.result);
+        const failed = items.filter(u => u.status === "실패");
+        if (okItems.length === 0) throw new Error("읽은 파일이 없습니다. " + (failed[0]?.msg || ""));
+        const merged = mergeParsedFiles(okItems);
+        if (merged.existingContracts.length + merged.proposedContracts.length === 0) {
+          throw new Error("서류에서 계약 정보를 찾지 못했습니다. 파일이 선명한지, 보험 서류가 맞는지 확인해 주세요.");
         }
 
+        // ---- 2단계: 통합 분석 (텍스트만 전송하므로 빠름) ----
+        statusText.textContent = "2/2단계: 부족 보장·시나리오·상담 대사 분석 중...";
         const prompts = currentData.scriptPrompts;
-        const prompt = `당신은 대한민국 최고의 보험 상품 분석가이자 Insureport형 정밀 보장분석 및 리모델링 전문가입니다.
-총 ${uploadedFiles.length}개의 첨부 서류 전체 페이지를 꼼꼼히 끝까지 분석하여, 고객용 보장분석 리포트, 기존계약/신규제안 비교 데이터, 담보별 감액기간/감액금액 상세정보, 5대 실전 제안 대사를 작성하세요.
+        const synthPrompt = `당신은 대한민국 최고의 보험 상품 분석가이자 정밀 보장분석·리모델링 전문가입니다.
+아래는 고객 서류에서 이미 추출한 기존 계약과 신규 제안 계약입니다. 이를 근거로 고객용 보장분석 리포트와 5대 실전 제안 대사를 작성하세요. 계약 정보 자체는 다시 쓰지 마세요.
 
-[핵심 분석 지시사항]
-1. 기존 계약(existingContracts)과 새로운 제안 계약(proposedContracts)을 상품별로 하나씩 정확히 구분하여 배열에 넣으세요. (만약 신규 설계서만 첨부되었다면 existingContracts는 빈 배열로 두고 proposedContracts에 상품별로 넣으세요. 반대로 기존 증권만 있다면 existingContracts에 넣으세요.)
-2. 모든 특약(riders)마다 담보별 감액기간/면책기간(reductionPeriod, 예: "90일 면책 / 1년 미만 50% 감액" 또는 "감액 없음(즉시 100%)")과 감액기간 중 실제 지급되는 감액금액(reductionAmount, 예: "2,500만원 (50% 지급)" 또는 "100% 전액 지급")을 세세하게 작성하세요.
-3. 비교분석표 자동 합산을 위해 각 특약의 cat(카테고리) 또는 name(특약명)에 '일반암', '유사암', '뇌혈관', '허혈', '수술', '입원', '1인실', '골절' 키워드가 명확히 포함되도록 하고, amountManwon에 만원 단위 숫자(예: 5000, 2000, 10 등)를 정확히 기록하세요.
-4. 부족 보장 진단(gapAnalysis)과 준비율 바(analysisMetrics)를 정밀하게 도출하세요.
+[고객] ${merged.customer.name || "미상"} (피보험자 ${merged.customer.insuredName || "미상"}, ${merged.customer.birth || "나이 미상"})
+[기존 계약] ${JSON.stringify(compactContracts(merged.existingContracts))}
+[신규 제안 계약] ${JSON.stringify(compactContracts(merged.proposedContracts))}
 
 [설계사가 지정한 5가지 실전 상담 상황]
 상황1: ${prompts.p1 || "첫 안내 멘트"}
@@ -1931,161 +2489,76 @@ ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
 상황4: ${prompts.p4 || "가족/배우자 상의 핑계 극복"}
 상황5: ${prompts.p5 || "당일 결정 클로징"}
 
-[설계사 추가 요청사항 / 텍스트]
-${rawText || "첨부된 모든 서류를 통합 분석하여 기존/신규 계약별 상세 특약과 감액기간, 비교분석표를 완성해 주세요."}
+[설계사 추가 요청사항]
+${rawText || "없음"}
 
-반드시 아래 JSON 스키마 구조로 순수 JSON 데이터만 반환하세요:
+반드시 아래 JSON 구조로만 응답하세요:
 {
-  "mode": "child 또는 adult 중 선택",
-  "brandShort": "보험사 영문/한글 약어 2~3글자",
-  "clientName": "고객 이름",
-  "insuredName": "피보험자 상세 표시",
+  "mode": "child 또는 adult",
+  "brandShort": "보험사 약어 2~3글자",
   "productName": "메인 상품명 또는 리모델링 플랜명",
-  "targetDate": "YYYY-MM-DD 형식의 상령일 또는 출생예정일",
-  "targetLabel": "출생예정일 또는 상령일",
-  "issueNo": "설계번호 또는 발행번호",
+  "targetDate": "YYYY-MM-DD 형식의 상령일/출생예정일 (모르면 빈 문자열)",
+  "targetLabel": "상령일 또는 출생예정일",
+  "issueNo": "",
   "premium1": "월 납입 보험료 요약",
-  "premium2": "변경후 보험료 요약",
+  "premium2": "변경후 보험료 요약 (없으면 빈 문자열)",
   "totalRidersBadge": "총 가입 특약 개수 요약",
-  "agentComment": "보장분석 총평 및 설계사의 한마디 요약 코멘트 2문장",
-  "gapAnalysis": [
-    {
-      "title": "부족 담보명",
-      "status": "보완시급 | 보장공백",
-      "problem": "부족 시 생기는 문제점 설명",
-      "solution": "설계사의 보완 해결책 제안"
-    }
-  ],
-  "analysisMetrics": [
-    {
-      "title": "담보명 (예: 일반암 진단비)",
-      "currentVal": "현재 가입금액",
-      "targetVal": "권장 기준",
-      "scorePct": 70,
-      "status": "보완필요 | 적정 | 충분"
-    }
-  ],
-  "existingContracts": [
-    {
-      "company": "보험사명",
-      "productName": "기존 가입 상품명",
-      "premium": "월 보험료 (예: 85,000원)",
-      "period": "납기/만기 (예: 20년납 80세만기)",
-      "checked": true,
-      "riders": [
-        {
-          "cat": "일반암 | 유사암 | 뇌혈관 | 허혈 | 수술 | 입원 | 1인실 | 골절 | 기타 중 택1",
-          "name": "특약명",
-          "amount": "가입금액 표시 (예: 3,000만원)",
-          "amountManwon": 3000,
-          "reductionPeriod": "기가입 계약 (면책/감액 종료)",
-          "reductionAmount": "3,000만원 (100%)",
-          "checked": true
-        }
-      ]
-    }
-  ],
-  "proposedContracts": [
-    {
-      "company": "제안 보험사명",
-      "productName": "신규 제안 상품명",
-      "premium": "월 보험료 (예: 62,000원)",
-      "period": "납기/만기 (예: 20년납 100세만기)",
-      "checked": true,
-      "riders": [
-        {
-          "cat": "일반암 | 유사암 | 뇌혈관 | 허혈 | 수술 | 입원 | 1인실 | 골절 | 기타 중 택1",
-          "name": "특약명",
-          "amount": "가입금액 표시 (예: 5,000만원)",
-          "amountManwon": 5000,
-          "riderPrem": "특약 개별 보험료 (예: 12,500원, 모르면 빈 문자열)",
-          "reductionPeriod": "가입 후 90일 면책 / 1년 미만 50% 감액",
-          "reductionAmount": "2,500만원 (1년 이후 5,000만원)",
-          "checked": true
-        }
-      ]
-    }
-  ],
-  "calcRates": {
-    "diseaseBase": 0, "injuryBase": 0, "generalAdd": 0, "tertiaryAdd": 0, "singleRoomAdd": 0, "icuOrIncuAdd": 0
-  },
-  "heroMetrics": [
-    { "category": "카테고리명", "title": "핵심보장 금액", "sub": "세부 부연설명" }
-  ],
-  "scenarios": [
-    {
-      "id": "고유영문ID",
-      "category": "emergency | hospital | injury | birth | critical 중 택1",
-      "badge": "배지명",
-      "icon": "이모지 1개",
-      "title": "실제 상황 제목",
-      "ConditionCode": "질병코드 또는 조건",
-      "summaryAmount": "예상 수령액 요약",
-      "highlight": "보장 포인트 설명",
-      "payouts": [
-        { "name": "특약명", "amount": "금액", "note": "기준" }
-      ],
-      "caution": "유의사항"
-    }
-  ],
-  "riders": [
-    {
-      "cat": "분류명",
-      "name": "특약명",
-      "amount": "가입금액",
-      "period": "납기/만기",
-      "note": "요약",
-      "reductionPeriod": "면책/감액기간 상세 (예: 90일 면책, 1년 미만 50% 감액)",
-      "reductionAmount": "감액기간 중 지급액 (예: 2,500만원)"
-    }
-  ],
-  "scripts": {
-    "s1": "상황1에 대한 실전 상담 대사",
-    "s2": "상황2에 대한 실전 상담 대사",
-    "s3": "상황3에 대한 실전 상담 대사",
-    "s4": "상황4에 대한 실전 상담 대사",
-    "s5": "상황5에 대한 실전 상담 대사"
-  }
+  "agentComment": "보장분석 총평 2문장",
+  "gapAnalysis": [ { "title": "부족 담보명", "status": "보완시급 | 보장공백", "problem": "부족 시 문제점", "solution": "보완 제안" } ],
+  "analysisMetrics": [ { "title": "담보명", "currentVal": "현재 가입금액", "targetVal": "권장 기준", "scorePct": 70, "status": "보완필요 | 적정 | 충분" } ],
+  "calcRates": { "diseaseBase": 0, "injuryBase": 0, "generalAdd": 0, "tertiaryAdd": 0, "singleRoomAdd": 0, "icuOrIncuAdd": 0 },
+  "heroMetrics": [ { "category": "카테고리명", "title": "핵심보장 금액", "sub": "부연설명" } ],
+  "scenarios": [ { "id": "고유영문ID", "category": "emergency | hospital | injury | birth | critical 중 택1", "badge": "배지명", "icon": "이모지 1개", "title": "실제 상황 제목", "ConditionCode": "질병코드 또는 조건", "summaryAmount": "예상 수령액 요약", "highlight": "보장 포인트", "payouts": [ { "name": "특약명", "amount": "금액", "note": "기준" } ], "caution": "유의사항" } ],
+  "scripts": { "s1": "", "s2": "", "s3": "", "s4": "", "s5": "" }
 }`;
 
-        parts.push({ text: prompt });
+        let synth = {};
+        let synthError = "";
+        try {
+          synth = await callGemini(apiKey, [{ text: synthPrompt }]);
+        } catch (err) {
+          synthError = err.message || String(err);
+        }
 
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts }],
-            generationConfig: { responseMimeType: "application/json" }
-          })
-        });
-
-        const json = await res.json();
-        if (json.error) throw new Error(json.error.message);
-
-        const outputText = json.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        const cleaned = outputText.replace(/```json|```/g, "").trim();
-        const parsed = JSON.parse(cleaned);
-
-        const savedAgentName = currentData.agentName;
-        const savedAgentPhone = currentData.agentPhone;
-        const savedAgentOrg = currentData.agentOrg;
+        const savedAgent = { name: currentData.agentName, phone: currentData.agentPhone, org: currentData.agentOrg };
         const savedPrompts = currentData.scriptPrompts;
+        const savedRates = currentData.calcRates;
 
-        currentData = Object.assign({}, EMPTY_DATA, parsed);
+        currentData = Object.assign({}, EMPTY_DATA, synth);
         currentData.id = "REC_" + Date.now();
-        if (savedAgentName) currentData.agentName = savedAgentName;
-        if (savedAgentPhone) currentData.agentPhone = savedAgentPhone;
-        if (savedAgentOrg) currentData.agentOrg = savedAgentOrg;
+        currentData.clientName = merged.customer.name || document.getElementById("inpClientName").value || "";
+        currentData.insuredName = merged.customer.insuredName || currentData.insuredName || "";
+        currentData.existingContracts = merged.existingContracts;
+        currentData.proposedContracts = merged.proposedContracts;
+        currentData.riders = [...merged.existingContracts, ...merged.proposedContracts].flatMap(c =>
+          c.riders.map(r => ({ cat: r.cat, name: r.name, amount: r.amount, period: c.period, note: `${c.company} ${c.productName}`.trim(), reductionPeriod: r.reductionPeriod, reductionAmount: r.reductionAmount })));
+        currentData.fileResults = items.map(u => ({
+          name: u.file ? u.file.name : "입력 텍스트", status: u.status,
+          docType: u.kind !== "auto" ? u.kind : (u.result?.docType || "unknown"),
+          contracts: u.result?.contractCount || 0, riders: u.result?.riderCount || 0,
+          confidence: u.result?.confidence || 0, seconds: Number((u.ms / 1000).toFixed(1)), notes: u.result?.notes || ""
+        }));
+        if (savedAgent.name) currentData.agentName = savedAgent.name;
+        if (savedAgent.phone) currentData.agentPhone = savedAgent.phone;
+        if (savedAgent.org) currentData.agentOrg = savedAgent.org;
         if (savedPrompts) currentData.scriptPrompts = savedPrompts;
+        if (!synth.calcRates && savedRates) currentData.calcRates = savedRates;
 
         saveToHistory(currentData);
         syncDataToInputs();
         renderPreview();
-        alert(`✨ 기존 계약·신규 제안 비교 시뮬레이터 및 담보별 감액기간 분석이 모두 완료되었습니다!\n우측 미리보기에서 [⚖️ 계약·비교] 탭과 [📋 특약·감액] 탭을 확인해 보세요.`);
+
+        const total = ((performance.now() - t0) / 1000).toFixed(1);
+        let msg = `✨ 분석 완료 (${total}초)\n- 읽은 파일 ${okItems.length}/${items.length}개 · 기존 ${merged.existingContracts.length}건 / 신규 ${merged.proposedContracts.length}건`;
+        if (failed.length) msg += `\n⚠️ 읽지 못한 파일: ${failed.map(f => f.file?.name).join(", ")}`;
+        if (synthError) msg += `\n⚠️ 부족보장·시나리오·대사 생성은 실패했습니다(${synthError}). 계약·담보 표는 정상 반영되었으니 [제안 대사] 탭의 일괄 생성 버튼으로 다시 시도해 주세요.`;
+        msg += "\n\n우측 미리보기의 [🚦 현황·신호등] 탭을 확인해 보세요.";
+        alert(msg);
       } catch (err) {
         alert("AI 분석 중 오류가 발생했습니다: " + err.message);
       } finally {
         statusBox.classList.add("hidden");
+        btn.disabled = false; btn.classList.remove("opacity-60");
       }
     });
 
