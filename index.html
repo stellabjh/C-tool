@@ -2119,7 +2119,7 @@
           const j = await res.json();
           if (j && j.hasKey === true) {
             serverKey = { available: true, needsPasscode: !!j.needsPasscode, message: "" };
-            setServerNote("ok", `✅ 서버(변수 및 시크릿)에 API 키가 있습니다 (${j.keyName || "GEMINI_API_KEY"}). 입력할 필요가 없습니다.${j.needsPasscode ? " (접속 암호 사용)" : ""}`);
+            setServerNote("ok", `✅ 서버(변수 및 시크릿)에 API 키가 있습니다 (${j.keyCount > 1 ? j.keyCount + "개 등록됨: 번갈아 사용" : (j.keyName || "GEMINI_API_KEY")}). 입력할 필요가 없습니다.${j.needsPasscode ? " (접속 암호 사용)" : ""}`);
             return;
           }
           serverKey.message = "서버(변수 및 시크릿)에 API 키가 없습니다. 아래에 API 키를 입력해 주세요. (Cloudflare 변수 및 시크릿에 GEMINI_API_KEY를 추가하고 다시 배포하면 이후로는 입력이 필요 없습니다.)";
