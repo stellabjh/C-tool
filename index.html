@@ -607,27 +607,19 @@
     // 고객용 HTML 템플릿 (기존/신규 계약 체크박스, 상세페이지, 비교표, 감액기간 완벽 포함)
     // =========================================================================
         // =========================================================================
-    // 고객용 리포트의 [현황·신호등] 탭 렌더러.
+    // 고객용 리포트의 [보장분석신호등] 탭 렌더러.
     // generateClientHtml 안에 renderStatusViews.toString()으로 그대로 삽입되어
     // 고객 화면에서 실행됩니다. (parseNum 은 고객 화면 스크립트에 정의되어 있음)
     // =========================================================================
-    function renderStatusViews(DATA, existingList, proposedList) {
-      const root = document.getElementById("statusRoot");
-      if (!root) return;
-
-      const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-      const won = (n) => (n > 0 ? Math.round(n).toLocaleString() + "원" : "0원");
-      const fmt = (v) => {
-        if (!v || v <= 0) return "미가입";
-        if (v >= 10000) {
-          const eok = Math.floor(v / 10000), man = Math.round(v % 10000);
-          return man > 0 ? eok + "억 " + man.toLocaleString() + "만원" : eok + "억원";
-        }
-        return Math.round(v).toLocaleString() + "만원";
-      };
-
-      // 업계 일반 권장 기준(만원). DATA.recommended 로 덮어쓸 수 있음 (참고용 기준)
-      const REC = Object.assign({ "일반암": 5000, "유사암": 1000, "뇌혈관": 3000, "허혈": 3000, "수술": 500, "입원": 5, "1인실": 10, "골절": 100 }, DATA.recommended || {});
+    // =========================================================================
+    // 담보별 보장 현황 계산 (기존 + 신규 합산, 권장 대비 신호등 판정).
+    // 고객 화면(renderStatusViews)과 빌더의 상담 대사 생성이 같은 숫자를 쓰도록 한 곳에서 계산합니다.
+    // generateClientHtml 안에 toString()으로 그대로 삽입되므로 외부 변수에 기대지 않습니다.
+    // num: 금액 문자열/숫자를 만원 단위 숫자로 바꾸는 함수
+    // =========================================================================
+    function computeCoverage(existingList, proposedList, recommended, num) {
+      // 업계 일반 권장 기준(만원). 데이터 JSON의 recommended 로 덮어쓸 수 있음 (참고용 기준)
+      const REC = Object.assign({ "일반암": 5000, "유사암": 1000, "뇌혈관": 3000, "허혈": 3000, "수술": 500, "입원": 5, "1인실": 10, "골절": 100 }, recommended || {});
       const CATS = [
         { key: "일반암", label: "암 진단비 (일반암)" },
         { key: "유사암", label: "유사암 진단비" },
@@ -638,8 +630,7 @@
         { key: "1인실", label: "상급종합 1인실/간병일당" },
         { key: "골절", label: "골절 진단비" }
       ];
-
-      const amountOf = (r) => parseNum(r.amountManwon !== undefined ? r.amountManwon : r.amount);
+      const amountOf = (r) => num(r.amountManwon !== undefined ? r.amountManwon : r.amount);
       const sumBy = (list, key) => {
         let t = 0;
         list.forEach((c) => {
@@ -650,12 +641,6 @@
         });
         return t;
       };
-
-      const LIGHT = {
-        green: { dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500", emoji: "🟢" },
-        yellow: { dot: "bg-amber-400", chip: "bg-amber-50 text-amber-700 border-amber-200", bar: "bg-amber-400", emoji: "🟡" },
-        red: { dot: "bg-rose-500", chip: "bg-rose-50 text-rose-700 border-rose-200", bar: "bg-rose-500", emoji: "🔴" }
-      };
       const judge = (cur, rec) => {
         if (cur <= 0) return { color: "red", text: "미가입" };
         const p = cur / rec;
@@ -663,8 +648,7 @@
         if (p >= 0.5) return { color: "yellow", text: "보완 권장" };
         return { color: "red", text: "부족" };
       };
-
-      const rows = CATS.map((cat) => {
+      return CATS.map((cat) => {
         const ex = sumBy(existingList, cat.key);
         const pr = sumBy(proposedList, cat.key);
         const total = ex + pr;
@@ -681,14 +665,46 @@
         });
         return { cat, ex, pr, total, rec, j, pct, reduction };
       });
+    }
+
+    // 빌더 전용: 상담 대사 생성에 쓸 "계산된 보장 현황" 문장 (모든 담보를 선택한 상태 기준)
+    function coverageFactsText(existing, proposed, recommended) {
+      const all = (list) => (list || []).map((c) => ({ ...c, checked: true, riders: (c.riders || []).map((r) => ({ ...r, checked: true })) }));
+      const f = (v) => (v > 0 ? Math.round(v).toLocaleString() + "만원" : "없음");
+      return computeCoverage(all(existing), all(proposed), recommended, toManwon)
+        .map((r) => `${r.cat.label}: 기존 ${f(r.ex)} + 신규 ${f(r.pr)} = 합산 ${f(r.total)} / 권장 ${f(r.rec)} → ${r.j.text}`)
+        .join("\n");
+    }
+
+    function renderStatusViews(DATA, existingList, proposedList) {
+      const root = document.getElementById("statusRoot");
+      if (!root) return;
+
+      const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const won = (n) => (n > 0 ? Math.round(n).toLocaleString() + "원" : "0원");
+      const fmt = (v) => {
+        if (!v || v <= 0) return "미가입";
+        if (v >= 10000) {
+          const eok = Math.floor(v / 10000), man = Math.round(v % 10000);
+          return man > 0 ? eok + "억 " + man.toLocaleString() + "만원" : eok + "억원";
+        }
+        return Math.round(v).toLocaleString() + "만원";
+      };
+
+      const LIGHT = {
+        green: { dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500", emoji: "🟢" },
+        yellow: { dot: "bg-amber-400", chip: "bg-amber-50 text-amber-700 border-amber-200", bar: "bg-amber-400", emoji: "🟡" },
+        red: { dot: "bg-rose-500", chip: "bg-rose-50 text-rose-700 border-rose-200", bar: "bg-rose-500", emoji: "🔴" }
+      };
+      const rows = computeCoverage(existingList, proposedList, DATA.recommended, parseNum);
       const count = { green: 0, yellow: 0, red: 0 };
       rows.forEach((r) => count[r.j.color]++);
 
-      // ---- 0. 보험 신호등 ----
+      // ---- 0. 보장분석신호등 ----
       const trafficHtml = `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
           <div>
-            <span class="px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-[11px] font-extrabold">🚦 보험 신호등</span>
+            <span class="px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-[11px] font-extrabold">🚦 보장분석신호등</span>
             <h3 class="text-sm font-extrabold text-slate-900 mt-1">선택한 계약 기준 보장 점검</h3>
             <p class="text-[11px] text-slate-500 mt-0.5">🟢 권장 이상 · 🟡 권장의 50% 이상 · 🔴 50% 미만/미가입 (업계 일반 기준, 참고용)</p>
           </div>
@@ -841,6 +857,8 @@
       delete safeData.scripts;
       delete safeData.scriptPrompts;
       delete safeData.fileResults;
+      delete safeData.gapAnalysis;
+      delete safeData.analysisMetrics;
 
       const safeJson = JSON.stringify(safeData).replace(/<\//g, '<\\/');
       const displayClient = safeData.clientName || "고객";
@@ -953,11 +971,11 @@
       <div id="uiHeroMetrics" class="grid grid-cols-2 gap-2.5"></div>
     </section>
 
-    <!-- Navigation Tabs (5개 탭으로 확장: 보장분석 / 계약·비교 / 상황예시 / 일당계산 / 특약·감액) -->
+    <!-- Navigation Tabs: 보장분석신호등 / 계약·비교 / 상황예시 / 일당계산 / 특약·감액 -->
     <div class="sticky top-[49px] z-30 bg-white border-b border-slate-200 px-2.5 py-2 shadow-sm nav-tabs-bar no-print">
       <div class="flex gap-1 bg-slate-100 p-1 rounded-xl text-center overflow-x-auto no-scrollbar">
-        <button data-view="view-report" class="nav-btn py-2 rounded-lg text-[11px] font-extrabold bg-slate-900 text-white shadow transition">
-          📊 보장분석
+        <button data-view="view-status" class="nav-btn py-2 rounded-lg text-[11px] font-extrabold bg-slate-900 text-white shadow transition">
+          🚦 보장분석신호등
         </button>
         <button data-view="view-compare" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           ⚖️ 계약·비교
@@ -971,48 +989,8 @@
         <button data-view="view-riders" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           📋 특약·감액
         </button>
-        <button data-view="view-status" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
-          🚦 현황·신호등
-        </button>
       </div>
     </div>
-
-    <!-- VIEW 0: Coverage Diagnostic & Gap Analysis Report -->
-    <section id="view-report" class="view-section p-4 space-y-4">
-      <!-- 1. 긴급 보완 필요(부족 보장 집중 진단) 카드 -->
-      <div class="bg-white rounded-2xl p-4 border border-rose-200 shadow-sm space-y-3">
-        <div class="flex items-center justify-between">
-          <span class="px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 text-[11px] font-extrabold border border-rose-200 flex items-center gap-1">
-            <span>🚨</span> 집중 보완 필요 리포트
-          </span>
-          <span class="text-[11px] text-slate-400">보장 공백 정밀 진단</span>
-        </div>
-        <h2 class="text-base font-extrabold text-slate-900 leading-snug">
-          치명적 보장 공백 및 부족 담보 점검 결과
-        </h2>
-        <p class="text-xs text-slate-500">
-          사고나 질병 발생 시 실제 본인 부담금이 크게 발생할 수 있는 부족 항목들입니다.
-        </p>
-        <div id="gapAnalysisContainer" class="space-y-2.5 pt-1"></div>
-      </div>
-
-      <!-- 2. 주요 핵심 보장 준비수준 바 -->
-      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3.5">
-        <div>
-          <span class="px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-700 text-[11px] font-bold border border-teal-200">항목별 권장 준비율</span>
-          <h3 class="text-sm font-extrabold text-slate-900 mt-1">업계 권장 기준 대비 고객님 가입 현황</h3>
-        </div>
-        <div id="reportMetricBars" class="space-y-3"></div>
-      </div>
-
-      <!-- 3. 컨설턴트 종합 소견 -->
-      <div class="bg-teal-900/10 border border-teal-500/20 rounded-2xl p-4 space-y-1.5">
-        <h3 class="text-xs font-bold text-teal-800 flex items-center gap-1.5">
-          <span>🔍</span> 컨설턴트 보장 리포트 종합 소견
-        </h3>
-        <p id="uiReportOpinion" class="text-xs text-slate-700 leading-relaxed"></p>
-      </div>
-    </section>
 
     <!-- VIEW 1: 기존계약 & 신규제안 개별 선택 + 상세페이지 + 실시간 비교분석표 (핵심 신규 기능!) -->
     <section id="view-compare" class="view-section hidden p-4 space-y-4">
@@ -1094,8 +1072,8 @@
 
     </section>
 
-    <!-- VIEW: 현황·신호등 (계약현황 요약 / 보유계약 / 담보별 진단 / 신호등 / 상품별 담보) -->
-    <section id="view-status" class="view-section hidden p-4 space-y-4">
+    <!-- VIEW: 보장분석신호등 (신호등 / 계약현황 요약 / 보유계약 / 담보별 진단 / 상품별 담보) -->
+    <section id="view-status" class="view-section p-4 space-y-4">
       <div id="statusRoot" class="space-y-4"></div>
     </section>
 
@@ -1318,84 +1296,7 @@
     \`).join("");
 
     // =========================================================================
-    // 1. 부족 보장 분석 리포트 & 준비율 바 렌더링
-    // =========================================================================
-    function renderGapAnalysis() {
-      const container = document.getElementById("gapAnalysisContainer");
-      const gaps = DATA.gapAnalysis || [];
-      if (gaps.length === 0) {
-        container.innerHTML = \`
-          <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500 text-center">
-            현재 확인된 중대한 보장 공백이 없거나 분석 전 상태입니다.
-          </div>\`;
-        return;
-      }
-      container.innerHTML = gaps.map(g => \`
-        <div class="p-3.5 rounded-xl bg-rose-50/60 border border-rose-200/90 space-y-1.5">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-extrabold text-rose-900 flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
-              \${g.title}
-            </span>
-            <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">
-              \${g.status || '보완필요'}
-            </span>
-          </div>
-          <p class="text-xs text-rose-950 font-medium leading-relaxed">\${g.problem}</p>
-          <div class="mt-1 pt-1.5 border-t border-rose-200/60 flex items-start gap-1 text-[11px] text-slate-700">
-            <span class="font-bold text-teal-800 shrink-0">💡 보완처방:</span>
-            <span>\${g.solution}</span>
-          </div>
-        </div>
-      \`).join("");
-    }
-    renderGapAnalysis();
-
-    function renderAnalysisReport() {
-      const barsContainer = document.getElementById("reportMetricBars");
-      const opinionEl = document.getElementById("uiReportOpinion");
-      const metrics = DATA.analysisMetrics || [];
-      opinionEl.textContent = DATA.agentComment || "전체적인 보장 밸런스를 점검하여 부족한 담보와 권장 준비율을 도출한 결과입니다.";
-
-      if (metrics.length === 0) {
-        barsContainer.innerHTML = \`<div class="p-4 text-center text-xs text-slate-400">보장분석 지표 데이터가 없습니다. 서류를 분석하여 생성해 주세요.</div>\`;
-        return;
-      }
-      barsContainer.innerHTML = metrics.map(m => {
-        const pct = Math.min(100, Math.max(5, Number(m.scorePct || 50)));
-        let tagClass = "bg-teal-50 text-teal-700 border-teal-200";
-        let barColor = "bg-teal-600";
-        if (m.status === "보완필요" || m.status === "부족" || pct < 50) {
-          tagClass = "bg-rose-50 text-rose-700 border-rose-200";
-          barColor = "bg-rose-500";
-        } else if (m.status === "충분" || m.status === "우수" || pct >= 90) {
-          tagClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
-          barColor = "bg-emerald-500";
-        }
-        return \`
-          <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-extrabold text-slate-800">\${m.title}</span>
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-black text-slate-900">\${m.currentVal}</span>
-                <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold border \${tagClass}">\${m.status}</span>
-              </div>
-            </div>
-            <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-              <div class="\${barColor} h-2 rounded-full transition-all duration-500" style="width: \${pct}%"></div>
-            </div>
-            <div class="flex items-center justify-between text-[10px] text-slate-500">
-              <span>권장: \${m.targetVal || '업계 권장수준'}</span>
-              <span>준비율: \${pct}%</span>
-            </div>
-          </div>
-        \`;
-      }).join("");
-    }
-    renderAnalysisReport();
-
-    // =========================================================================
-    // 2. 기존계약 / 신규제안 개별 체크박스 & 상세페이지 & 실시간 비교분석표 로직
+    // 기존계약 / 신규제안 개별 체크박스 & 상세페이지 & 실시간 비교분석표 로직
     // =========================================================================
     const existingList = (DATA.existingContracts || []).map((c, idx) => ({
       ...c,
@@ -1647,6 +1548,7 @@
       tbody.innerHTML = rowsHtml;
       renderStatusViews(DATA, existingList, proposedList);
     }
+    ${computeCoverage.toString()}
     ${renderStatusViews.toString()}
     renderCompareView();
 
@@ -2403,7 +2305,7 @@
       const pName = currentData.productName || "보험";
       const p1 = currentData.premium1 || "";
       const scenariosText = (currentData.scenarios || []).map(s => `${s.title}: ${s.summaryAmount}`).join(", ");
-      const gapsText = (currentData.gapAnalysis || []).map(g => `${g.title}(${g.status}): ${g.problem}`).join("; ");
+      const gapsText = coverageFactsText(currentData.existingContracts, currentData.proposedContracts, currentData.recommended);
       const prompts = currentData.scriptPrompts;
 
       const prompt = `당신은 대한민국 최고의 보험 세일즈 코치이자 실전 화법 전문가입니다.
@@ -2600,11 +2502,14 @@ ${FILE_PARSE_SCHEMA}` });
         statusText.textContent = "2/2단계: 부족 보장·시나리오·상담 대사 분석 중...";
         const prompts = currentData.scriptPrompts;
         const synthPrompt = `당신은 대한민국 최고의 보험 상품 분석가이자 정밀 보장분석·리모델링 전문가입니다.
-아래는 고객 서류에서 이미 추출한 기존 계약과 신규 제안 계약입니다. 이를 근거로 고객용 보장분석 리포트와 5대 실전 제안 대사를 작성하세요. 계약 정보 자체는 다시 쓰지 마세요.
+아래는 고객 서류에서 이미 추출한 기존 계약과 신규 제안 계약입니다. 이를 근거로 고객용 리포트 요약과 5대 실전 제안 대사를 작성하세요. 계약 정보 자체는 다시 쓰지 마세요. 부족 보장 진단과 신호등은 화면에서 직접 계산하므로 만들지 않아도 됩니다.
 
 [고객] ${merged.customer.name || "미상"} (피보험자 ${merged.customer.insuredName || "미상"}, ${merged.customer.birth || "나이 미상"})
 [기존 계약] ${JSON.stringify(compactContracts(merged.existingContracts))}
 [신규 제안 계약] ${JSON.stringify(compactContracts(merged.proposedContracts))}
+
+[계산된 보장 현황 — 담보 금액을 합산한 결과입니다. 금액과 부족 여부는 이 숫자만 근거로 쓰고, 다른 금액을 지어내지 마세요]
+${coverageFactsText(merged.existingContracts, merged.proposedContracts, currentData.recommended)}
 
 [설계사가 지정한 5가지 실전 상담 상황]
 상황1: ${prompts.p1 || "첫 안내 멘트"}
@@ -2628,8 +2533,6 @@ ${rawText || "없음"}
   "premium2": "변경후 보험료 요약 (없으면 빈 문자열)",
   "totalRidersBadge": "총 가입 특약 개수 요약",
   "agentComment": "보장분석 총평 2문장",
-  "gapAnalysis": [ { "title": "부족 담보명", "status": "보완시급 | 보장공백", "problem": "부족 시 문제점", "solution": "보완 제안" } ],
-  "analysisMetrics": [ { "title": "담보명", "currentVal": "현재 가입금액", "targetVal": "권장 기준", "scorePct": 70, "status": "보완필요 | 적정 | 충분" } ],
   "calcRates": { "diseaseBase": 0, "injuryBase": 0, "generalAdd": 0, "tertiaryAdd": 0, "singleRoomAdd": 0, "icuOrIncuAdd": 0 },
   "heroMetrics": [ { "category": "카테고리명", "title": "핵심보장 금액", "sub": "부연설명" } ],
   "scenarios": [ { "id": "고유영문ID", "category": "emergency | hospital | injury | birth | critical 중 택1", "badge": "배지명", "icon": "이모지 1개", "title": "실제 상황 제목", "ConditionCode": "질병코드 또는 조건", "summaryAmount": "예상 수령액 요약", "highlight": "보장 포인트", "payouts": [ { "name": "특약명", "amount": "금액", "note": "기준" } ], "caution": "유의사항" } ],
@@ -2676,7 +2579,7 @@ ${rawText || "없음"}
         let msg = `✨ 분석 완료 (${total}초)\n- 읽은 파일 ${okItems.length}/${items.length}개 · 기존 ${merged.existingContracts.length}건 / 신규 ${merged.proposedContracts.length}건`;
         if (failed.length) msg += `\n⚠️ 읽지 못한 파일: ${failed.map(f => f.file?.name).join(", ")}`;
         if (synthError) msg += `\n⚠️ 부족보장·시나리오·대사 생성은 실패했습니다(${synthError}). 계약·담보 표는 정상 반영되었으니 [제안 대사] 탭의 일괄 생성 버튼으로 다시 시도해 주세요.`;
-        msg += "\n\n우측 미리보기의 [🚦 현황·신호등] 탭을 확인해 보세요.";
+        msg += "\n\n우측 미리보기의 [🚦 보장분석신호등] 탭을 확인해 보세요.";
         alert(msg);
       } catch (err) {
         alert("AI 분석 중 오류가 발생했습니다: " + err.message);
