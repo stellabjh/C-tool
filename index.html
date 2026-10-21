@@ -297,6 +297,36 @@
           </div>
 
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
+            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">💰 다섯 친구 · 소득 기준 필요 보장 (단위: 만원)</h3>
+            <p class="text-[11px] text-slate-400 leading-relaxed">직업군이나 연소득을 입력하면 고객 리포트에 병원비·생활비·부양비·법률배상·유동자산 필요 금액이 표시됩니다. 비워 두면 표시하지 않습니다.</p>
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="text-[11px] text-slate-400 block mb-1">직업군</label>
+                <select id="inpJobType" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white">
+                  <option value="">선택 안 함</option>
+                  <option value="근로소득자">근로소득자 (기본 5,000)</option>
+                  <option value="종합소득자">종합소득자 (기본 10,000)</option>
+                  <option value="고소득&순자산증가">고소득 & 순자산증가 (기본 15,000)</option>
+                  <option value="법인대표">법인대표 (기본 10,000)</option>
+                  <option value="기초소득자">기초소득자 (기본 3,000)</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-[11px] text-slate-400 block mb-1">연소득 (비우면 직업군 기본값)</label>
+                <input id="inpIncome" type="number" min="0" step="100" placeholder="예: 6000" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
+              </div>
+              <div>
+                <label class="text-[11px] text-slate-400 block mb-1">배우자 연소득</label>
+                <input id="inpSpouseIncome" type="number" min="0" step="100" placeholder="없으면 비워두세요" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
+              </div>
+              <div>
+                <label class="text-[11px] text-slate-400 block mb-1">자녀 수</label>
+                <input id="inpChildren" type="number" min="0" step="1" placeholder="0" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
             <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">🏥 입원일당 계산기 단가 설정 (단위: 만원)</h3>
             <div class="grid grid-cols-3 gap-2">
               <div>
@@ -417,6 +447,7 @@
       agentPhone: localStorage.getItem("SAVED_AGENT_PHONE") || "",
       agentOrg: localStorage.getItem("SAVED_AGENT_ORG") || "",
       agentComment: "",
+      profile: { jobType: "", income: "", spouseIncome: "", childCount: "" },
       calcRates: {
         diseaseBase: 0, injuryBase: 0, generalAdd: 0, tertiaryAdd: 0, singleRoomAdd: 0, icuOrIncuAdd: 0
       },
@@ -667,13 +698,39 @@
       });
     }
 
+    // =========================================================================
+    // 다섯 친구: 소득 기준 필요 보장 금액(만원). 직업군/연소득이 없으면 빈 배열.
+    //  첫째 병원비 = 연소득 x1, 둘째 생활비 = 연소득 x1,
+    //  셋째 부양비 = 연소득 x (2 - 배우자 연소득 5,000 이상이면 1 + 자녀 수),
+    //  넷째 법률배상 = 소득과 무관(시장가격), 다섯째 유동자산 = 가구 연소득의 1/10
+    // generateClientHtml 안에 toString()으로 삽입되므로 외부 변수에 기대지 않습니다.
+    // =========================================================================
+    function computeFiveFriends(profile) {
+      const DEFAULT_INCOME = { "근로소득자": 5000, "종합소득자": 10000, "고소득&순자산증가": 15000, "법인대표": 10000, "기초소득자": 3000 };
+      const p = profile || {};
+      const own = Number(p.income) > 0 ? Number(p.income) : (DEFAULT_INCOME[p.jobType] || 0);
+      if (!own) return [];
+      const spouse = Math.max(0, Number(p.spouseIncome) || 0);
+      const kids = Math.max(0, Math.floor(Number(p.childCount) || 0));
+      const mult = Math.max(0, 2 - (spouse >= 5000 ? 1 : 0) + kids);
+      return [
+        { order: "첫째 친구", key: "hospital", label: "병원비", value: own, note: "연소득의 1배", main: true, own, spouse, kids },
+        { order: "둘째 친구", key: "living", label: "생활비", value: own, note: "연소득의 1배", own, spouse, kids },
+        { order: "셋째 친구", key: "support", label: "부양비", value: own * mult, note: "연소득의 " + mult + "배", own, spouse, kids },
+        { order: "넷째 친구", key: "legal", label: "법률배상", value: null, note: "소득과 무관 (시장가격)", own, spouse, kids },
+        { order: "다섯째 친구", key: "asset", label: "유동자산", value: (own + spouse) * 0.1, note: (spouse > 0 ? "가구 연소득" : "연소득") + "의 1/10", own, spouse, kids }
+      ];
+    }
+
     // 빌더 전용: 상담 대사 생성에 쓸 "계산된 보장 현황" 문장 (모든 담보를 선택한 상태 기준)
-    function coverageFactsText(existing, proposed, recommended) {
+    function coverageFactsText(existing, proposed, recommended, profile) {
       const all = (list) => (list || []).map((c) => ({ ...c, checked: true, riders: (c.riders || []).map((r) => ({ ...r, checked: true })) }));
       const f = (v) => (v > 0 ? Math.round(v).toLocaleString() + "만원" : "없음");
-      return computeCoverage(all(existing), all(proposed), recommended, toManwon)
-        .map((r) => `${r.cat.label}: 기존 ${f(r.ex)} + 신규 ${f(r.pr)} = 합산 ${f(r.total)} / 권장 ${f(r.rec)} → ${r.j.text}`)
-        .join("\n");
+      const lines = computeCoverage(all(existing), all(proposed), recommended, toManwon)
+        .map((r) => `${r.cat.label}: 기존 ${f(r.ex)} + 신규 ${f(r.pr)} = 합산 ${f(r.total)} / 권장 ${f(r.rec)} → ${r.j.text}`);
+      const friends = computeFiveFriends(profile)
+        .map((x) => `${x.order} ${x.label}: ${x.value === null ? "시장가격" : f(x.value)} (${x.note})`);
+      return lines.concat(friends.length ? ["[다섯 친구 · 소득 기준 필요 보장]"].concat(friends) : []).join("\n");
     }
 
     // =========================================================================
@@ -823,6 +880,28 @@
             </div>` : ""}
         </div>`;
 
+      // ---- 다섯 친구 (소득 기준 필요 보장) ----
+      const friends = computeFiveFriends(DATA.profile);
+      const friendsHtml = friends.length === 0 ? "" : `
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+          <div>
+            <span class="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 text-[11px] font-extrabold border border-amber-200">💰 다섯 친구</span>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-1">소득 기준 필요 보장 가이드</h3>
+            <p class="text-[11px] text-slate-500 mt-0.5">연소득 ${fmt(friends[0].own)}${friends[0].spouse > 0 ? " · 배우자 " + fmt(friends[0].spouse) : ""}${friends[0].kids > 0 ? " · 자녀 " + friends[0].kids + "명" : ""} 기준 (참고용)</p>
+          </div>
+          <div class="space-y-2">
+            ${friends.map((f) => `
+              <div class="flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 border ${f.main ? "bg-amber-50/70 border-amber-200" : "bg-slate-50 border-slate-200"}">
+                <div class="min-w-0">
+                  <span class="text-[10px] font-bold ${f.main ? "text-amber-700" : "text-slate-400"}">${esc(f.order)}</span>
+                  <p class="text-xs font-extrabold text-slate-900">${esc(f.label)}</p>
+                  <p class="text-[10px] text-slate-500">${esc(f.note)}</p>
+                </div>
+                <p class="text-sm font-black ${f.main ? "text-amber-800" : "text-slate-900"} shrink-0">${f.value === null ? "시장가격" : fmt(f.value)}</p>
+              </div>`).join("")}
+          </div>
+        </div>`;
+
       // ---- 2. 보유 계약현황 ----
       const holdHtml = `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
@@ -917,7 +996,7 @@
       const opened = Array.from(root.querySelectorAll("details")).map((d) => d.open);
       const summaryRoot = document.getElementById("summaryRoot");
       if (summaryRoot) summaryRoot.innerHTML = summaryHtml;
-      root.innerHTML = (summaryRoot ? "" : summaryHtml) + trafficHtml + holdHtml + diagHtml + productHtml;
+      root.innerHTML = (summaryRoot ? "" : summaryHtml) + trafficHtml + friendsHtml + holdHtml + diagHtml + productHtml;
       root.querySelectorAll("details").forEach((d, i) => { if (opened[i]) d.open = true; });
     }
 
@@ -1569,6 +1648,7 @@
       if (window.__scenariosReady) renderScenarios();
     }
     ${computeCoverage.toString()}
+    ${computeFiveFriends.toString()}
     ${resolveScenario.toString()}
     ${renderStatusViews.toString()}
     renderCompareView();
@@ -1820,6 +1900,12 @@
       document.getElementById("inpAgentOrg").value = currentData.agentOrg || "";
       document.getElementById("inpAgentComment").value = currentData.agentComment || "";
 
+      const pf = currentData.profile || {};
+      document.getElementById("inpJobType").value = pf.jobType || "";
+      document.getElementById("inpIncome").value = pf.income ?? "";
+      document.getElementById("inpSpouseIncome").value = pf.spouseIncome ?? "";
+      document.getElementById("inpChildren").value = pf.childCount ?? "";
+
       const r = currentData.calcRates || {};
       document.getElementById("inpRateDisease").value = r.diseaseBase ?? 0;
       document.getElementById("inpRateInjury").value = r.injuryBase ?? 0;
@@ -1865,6 +1951,13 @@
       localStorage.setItem("SAVED_AGENT_NAME", currentData.agentName);
       localStorage.setItem("SAVED_AGENT_PHONE", currentData.agentPhone);
       localStorage.setItem("SAVED_AGENT_ORG", currentData.agentOrg);
+
+      currentData.profile = {
+        jobType: document.getElementById("inpJobType").value,
+        income: document.getElementById("inpIncome").value,
+        spouseIncome: document.getElementById("inpSpouseIncome").value,
+        childCount: document.getElementById("inpChildren").value
+      };
 
       currentData.calcRates = {
         diseaseBase: Number(document.getElementById("inpRateDisease").value || 0),
@@ -2327,7 +2420,7 @@
       const pName = currentData.productName || "보험";
       const p1 = currentData.premium1 || "";
       const scenariosText = (currentData.scenarios || []).map(s => `${s.title}: ${s.summaryAmount}`).join(", ");
-      const gapsText = coverageFactsText(currentData.existingContracts, currentData.proposedContracts, currentData.recommended);
+      const gapsText = coverageFactsText(currentData.existingContracts, currentData.proposedContracts, currentData.recommended, currentData.profile);
       const prompts = currentData.scriptPrompts;
 
       const prompt = `당신은 대한민국 최고의 보험 세일즈 코치이자 실전 화법 전문가입니다.
@@ -2531,7 +2624,7 @@ ${FILE_PARSE_SCHEMA}` });
 [신규 제안 계약] ${JSON.stringify(compactContracts(merged.proposedContracts))}
 
 [계산된 보장 현황 — 담보 금액을 합산한 결과입니다. 금액과 부족 여부는 이 숫자만 근거로 쓰고, 다른 금액을 지어내지 마세요]
-${coverageFactsText(merged.existingContracts, merged.proposedContracts, currentData.recommended)}
+${coverageFactsText(merged.existingContracts, merged.proposedContracts, currentData.recommended, currentData.profile)}
 
 [설계사가 지정한 5가지 실전 상담 상황]
 상황1: ${prompts.p1 || "첫 안내 멘트"}
