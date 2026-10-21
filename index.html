@@ -153,7 +153,7 @@
 
           <div class="flex justify-end">
             <button id="btnRegenerateScripts" class="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold border border-amber-500/40 transition flex items-center gap-1.5 shadow">
-              <span>⚡</span> 입력한 5가지 상황 기준으로 대사 일괄 생성/갱신
+              <span>⚡</span> 대사 5종 모두 다시 생성
             </button>
           </div>
 
@@ -162,6 +162,7 @@
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-bold text-teal-400 shrink-0">상황 1</span>
               <input id="scriptPrompt1" type="text" placeholder="상황을 입력하세요 (예: 보장분석 리포트 전달 시 첫 안내)" class="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-teal-500" />
+              <button onclick="regenerateScripts(1)" title="분석은 그대로 두고 이 상황의 대사만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
               <button onclick="copyScript('scriptBox1')" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-[11px] text-slate-200 font-semibold transition shrink-0">
                 📋 복사
               </button>
@@ -174,6 +175,7 @@
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-bold text-rose-400 shrink-0">상황 2</span>
               <input id="scriptPrompt2" type="text" placeholder="상황을 입력하세요 (예: 기존 보험 대비 신규 플랜의 보완 효과를 설득할 때)" class="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-rose-500" />
+              <button onclick="regenerateScripts(2)" title="분석은 그대로 두고 이 상황의 대사만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
               <button onclick="copyScript('scriptBox2')" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-[11px] text-slate-200 font-semibold transition shrink-0">
                 📋 복사
               </button>
@@ -186,6 +188,7 @@
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-bold text-emerald-400 shrink-0">상황 3</span>
               <input id="scriptPrompt3" type="text" placeholder="상황을 입력하세요 (예: 타사 대비 보장 범위 및 감액기간 우위를 설명할 때)" class="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-500" />
+              <button onclick="regenerateScripts(3)" title="분석은 그대로 두고 이 상황의 대사만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
               <button onclick="copyScript('scriptBox3')" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-[11px] text-slate-200 font-semibold transition shrink-0">
                 📋 복사
               </button>
@@ -198,6 +201,7 @@
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-bold text-teal-300 shrink-0">상황 4</span>
               <input id="scriptPrompt4" type="text" placeholder="상황을 입력하세요 (예: 가족과 상의해 보겠다며 결정을 미룰 때)" class="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-teal-500" />
+              <button onclick="regenerateScripts(4)" title="분석은 그대로 두고 이 상황의 대사만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
               <button onclick="copyScript('scriptBox4')" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-[11px] text-slate-200 font-semibold transition shrink-0">
                 📋 복사
               </button>
@@ -210,6 +214,7 @@
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-bold text-amber-300 shrink-0">상황 5</span>
               <input id="scriptPrompt5" type="text" placeholder="상황을 입력하세요 (예: 면책/감액기간 하루라도 빨리 넘기기 위해 당일 클로징)" class="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400" />
+              <button onclick="regenerateScripts(5)" title="분석은 그대로 두고 이 상황의 대사만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
               <button onclick="copyScript('scriptBox5')" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-[11px] text-slate-200 font-semibold transition shrink-0">
                 📋 복사
               </button>
@@ -348,6 +353,14 @@
         </div>
         <span class="text-[11px] text-slate-400">우측 화면의 [⚖️ 계약비교] 탭에서 계약과 담보를 직접 체크해 보세요!</span>
       </div>
+      <div class="px-6 py-2 bg-slate-900/30 border-b border-slate-800 flex items-center gap-x-4 gap-y-1 flex-wrap shrink-0">
+        <span class="text-[11px] font-bold text-slate-300">📤 고객 리포트에 포함할 화면</span>
+        <label class="flex items-center gap-1.5 text-[11px] text-slate-200 cursor-pointer"><input type="checkbox" data-include="status" checked class="accent-teal-500 w-3.5 h-3.5" /> 🚦 보장분석신호등</label>
+        <label class="flex items-center gap-1.5 text-[11px] text-slate-200 cursor-pointer"><input type="checkbox" data-include="contracts" checked class="accent-teal-500 w-3.5 h-3.5" /> 📁 계약·담보 현황</label>
+        <label class="flex items-center gap-1.5 text-[11px] text-slate-200 cursor-pointer"><input type="checkbox" data-include="compare" checked class="accent-teal-500 w-3.5 h-3.5" /> ⚖️ 계약·비교</label>
+        <label class="flex items-center gap-1.5 text-[11px] text-slate-200 cursor-pointer"><input type="checkbox" data-include="scenarios" checked class="accent-teal-500 w-3.5 h-3.5" /> 🩺 상황예시</label>
+        <span class="text-[10px] text-slate-500">체크를 끄면 미리보기와 다운로드 파일에서 해당 화면이 빠집니다</span>
+      </div>
       <div class="flex-1 p-4 overflow-hidden flex items-center justify-center">
         <iframe id="previewFrame" class="w-full h-full rounded-2xl border border-slate-800 bg-white shadow-2xl"></iframe>
       </div>
@@ -407,6 +420,7 @@
       agentComment: "",
       profile: { jobType: "근로소득자", income: "5000" },
       heroMetrics: [],
+      includeTabs: { status: true, contracts: true, compare: true, scenarios: true },
       analysisMetrics: [],
       gapAnalysis: [],
       // 신규 추가: 기존 계약 리스트 (개별 체크박스 및 상세페이지 지원)
@@ -1440,12 +1454,11 @@
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
           <div>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold">상품별 가입담보 상세</span>
-            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">상품을 눌러 담보 내역 보기</h3>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">기존 계약의 상품을 눌러 담보 내역 보기</h3>
           </div>
           <div class="space-y-2">
-            ${existingList.length + proposedList.length === 0 ? `<div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-400 text-center">등록된 계약이 없습니다.</div>` : ""}
+            ${existingList.length === 0 ? `<div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-400 text-center">등록된 기존 계약이 없습니다.</div>` : ""}
             ${existingList.map((c) => detailCard(c, false)).join("")}
-            ${proposedList.map((c) => detailCard(c, true)).join("")}
           </div>
         </div>`;
 
@@ -1514,6 +1527,7 @@
     }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .nav-btn[data-excluded], .view-section[data-excluded] { display: none !important; }
     .nav-btn { flex: 1 0 auto; padding-left: 0.65rem; padding-right: 0.65rem; white-space: nowrap; }
     details > summary { list-style: none; }
     details > summary::-webkit-details-marker { display: none; }
@@ -2085,6 +2099,24 @@
       });
     });
 
+    // 설계사가 고른 화면만 고객에게 보여줍니다. (제외한 화면은 탭과 내용, 인쇄에서도 빠짐)
+    (function () {
+      const inc = Object.assign({ status: true, contracts: true, compare: true, scenarios: true }, DATA.includeTabs || {});
+      const map = { status: "view-status", contracts: "view-contracts", compare: "view-compare", scenarios: "view-scenarios" };
+      let first = null;
+      Object.keys(map).forEach(function (k) {
+        const btn = document.querySelector('.nav-btn[data-view="' + map[k] + '"]');
+        const sec = document.getElementById(map[k]);
+        if (inc[k] === false) {
+          if (btn) btn.setAttribute("data-excluded", "1");
+          if (sec) sec.setAttribute("data-excluded", "1");
+        } else if (!first) {
+          first = btn;
+        }
+      });
+      if (first) first.click();
+    })();
+
     document.getElementById("btnToggleShell").addEventListener("click", () => {
       const shell = document.getElementById("mainShell");
       shell.classList.toggle("mobile-shell");
@@ -2109,6 +2141,30 @@
     // =========================================================================
     // 빌더 UI 바인딩 및 동기화
     // =========================================================================
+    // 고객 리포트에 포함할 화면 선택 (체크 해제한 화면은 미리보기·다운로드 파일에서 빠짐)
+    const INCLUDE_KEYS = ["status", "contracts", "compare", "scenarios"];
+    function readIncludeTabs() {
+      const out = {};
+      document.querySelectorAll("[data-include]").forEach(cb => { out[cb.dataset.include] = cb.checked; });
+      return out;
+    }
+    function applyIncludeTabs(inc) {
+      const v = Object.assign({ status: true, contracts: true, compare: true, scenarios: true }, inc || {});
+      document.querySelectorAll("[data-include]").forEach(cb => { cb.checked = v[cb.dataset.include] !== false; });
+    }
+    document.querySelectorAll("[data-include]").forEach(cb => {
+      cb.addEventListener("change", () => {
+        if (!INCLUDE_KEYS.some(k => readIncludeTabs()[k])) {
+          cb.checked = true;
+          showToast("고객 리포트에는 최소 한 개 화면이 포함되어야 합니다.", true);
+          return;
+        }
+        currentData.includeTabs = readIncludeTabs();
+        saveToHistory(currentData);
+        renderPreview();
+      });
+    });
+
     function syncDataToInputs() {
       document.getElementById("inpMode").value = currentData.mode || "adult";
       document.getElementById("inpBrandShort").value = currentData.brandShort || "";
@@ -2124,6 +2180,7 @@
       document.getElementById("inpAgentOrg").value = currentData.agentOrg || "";
       document.getElementById("inpAgentComment").value = currentData.agentComment || "";
 
+      applyIncludeTabs(currentData.includeTabs);
       const pf = currentData.profile || {};
       document.getElementById("inpJobType").value = pf.jobType || "";
       document.getElementById("inpIncome").value = pf.income ?? "";
@@ -2166,6 +2223,7 @@
       localStorage.setItem("SAVED_AGENT_PHONE", currentData.agentPhone);
       localStorage.setItem("SAVED_AGENT_ORG", currentData.agentOrg);
 
+      currentData.includeTabs = readIncludeTabs();
       currentData.profile = {
         jobType: document.getElementById("inpJobType").value,
         income: document.getElementById("inpIncome").value
@@ -2614,48 +2672,74 @@
       localStorage.setItem("GEMINI_BUILDER_MODEL", activeModel);
     });
 
-    // 5대 제안 대사만 갱신
-    document.getElementById("btnRegenerateScripts").addEventListener("click", async () => {
+    // 제안 대사만 다시 생성 (서류 분석은 다시 하지 않음). which: 1~5 = 해당 상황만, 생략 = 5종 모두
+    let regenerating = false;
+    window.regenerateScripts = async function (which) {
+      if (regenerating) return;
       const apiKey = document.getElementById("apiKeyInput").value.trim();
-      if (!(await ensureAiReady(apiKey))) return;
       syncInputsToData();
+      const hasData = (currentData.existingContracts || []).length + (currentData.proposedContracts || []).length > 0;
+      if (!hasData) {
+        alert("대사를 만들 분석 결과가 없습니다.\n먼저 [1. 서류 AI 분석]에서 서류를 분석해 주세요.");
+        return;
+      }
+      if (!(await ensureAiReady(apiKey))) return;
 
+      const keys = which ? [Number(which)] : [1, 2, 3, 4, 5];
       const cName = currentData.clientName || "고객";
       const pName = currentData.productName || "보험";
-      const p1 = currentData.premium1 || "";
-      const scenariosText = (currentData.scenarios || []).map(s => `${s.title}: ${s.summaryAmount}`).join(", ");
+      const scenarioTitles = (currentData.scenarios || []).map(s => s.title).filter(Boolean).join(", ");
+      const contractsText = [...(currentData.existingContracts || []).map(c => `기존: ${c.company} ${c.productName} ${c.premium}`), ...(currentData.proposedContracts || []).map(c => `신규 제안: ${c.company} ${c.productName} ${c.premium}`)].join(" / ");
       const gapsText = coverageFactsText(currentData.existingContracts, currentData.proposedContracts, currentData.recommended, currentData.profile);
       const prompts = currentData.scriptPrompts;
-
+      const situation = {
+        1: prompts.p1 || "첫 안내 멘트",
+        2: prompts.p2 || "부족한 보장 공백을 짚어주며 보완 플랜을 설득하는 반론 극복 화법",
+        3: prompts.p3 || "타사 비교 설득",
+        4: prompts.p4 || "가족/배우자 상의 핑계 극복",
+        5: prompts.p5 || "당일 결정 클로징"
+      };
       const prompt = `당신은 대한민국 최고의 보험 세일즈 코치이자 실전 화법 전문가입니다.
-고객 [${cName}님]의 [${pName}](월 보험료 ${p1}, 보장: ${scenariosText}) 분석 리포트와 아래 [보장 부족 분석 결과]를 바탕으로, 설계사가 실제로 사용할 5가지 상황별 맞춤 대사를 작성하세요.
+고객 [${cName}님]의 [${pName}] 분석 결과를 바탕으로, 설계사가 실제로 사용할 상황별 맞춤 대사를 작성하세요.
 
-[분석된 보장 부족 공백]
+[계약] ${contractsText || "없음"}
+[주요 상황 예시] ${scenarioTitles || "없음"}
+
+[계산된 보장 현황 — 금액과 부족 여부는 이 숫자만 근거로 쓰고, 다른 금액을 지어내지 마세요]
 ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
 
-[상황 5종]
-상황1: ${prompts.p1 || "첫 안내 멘트"}
-상황2: ${prompts.p2 || "부족한 보장 공백을 짚어주며 보완 플랜을 설득하는 반론 극복 화법"}
-상황3: ${prompts.p3 || "타사 비교 설득"}
-상황4: ${prompts.p4 || "가족/배우자 상의 핑계 극복"}
-상황5: ${prompts.p5 || "당일 결정 클로징"}
+[작성할 상황]
+${keys.map(k => `상황${k}: ${situation[k]}`).join("\n")}
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {
-  "s1": "상황1 대사", "s2": "상황2 대사", "s3": "상황3 대사", "s4": "상황4 대사", "s5": "상황5 대사"
+  ${keys.map(k => `"s${k}": "상황${k} 대사"`).join(", ")}
 }`;
 
+      regenerating = true;
+      const bulk = document.getElementById("btnRegenerateScripts");
+      const bulkText = bulk.innerHTML;
+      document.querySelectorAll(".regen-btn, #btnRegenerateScripts").forEach(b => { b.disabled = true; b.classList.add("opacity-60"); });
+      (which ? document.querySelectorAll(".regen-btn")[Number(which) - 1] : bulk).textContent = "생성 중...";
       try {
         const parsed = await callGemini(apiKey, [{ text: prompt }]);
-
-        currentData.scripts = parsed;
+        const picked = {};
+        keys.forEach(k => { if (typeof parsed["s" + k] === "string" && parsed["s" + k].trim()) picked["s" + k] = parsed["s" + k]; });
+        if (Object.keys(picked).length === 0) throw new Error("AI가 대사를 돌려주지 않았습니다. 다시 시도해 주세요.");
+        currentData.scripts = Object.assign({}, currentData.scripts, picked);
         saveToHistory(currentData);
         syncDataToInputs();
-        alert("⚡ 부족 보장 내용이 반영된 5가지 제안 대사가 새로 생성되어 보관함에 저장되었습니다!");
+        showToast(which ? `⚡ 상황 ${which} 대사를 다시 생성했습니다.` : "⚡ 대사 5종을 다시 생성했습니다.");
       } catch (err) {
         alert("대사 생성 중 오류가 발생했습니다: " + err.message);
+      } finally {
+        regenerating = false;
+        bulk.innerHTML = bulkText;
+        document.querySelectorAll(".regen-btn").forEach(b => { b.textContent = "🔄 다시 생성"; });
+        document.querySelectorAll(".regen-btn, #btnRegenerateScripts").forEach(b => { b.disabled = false; b.classList.remove("opacity-60"); });
       }
-    });
+    };
+    document.getElementById("btnRegenerateScripts").addEventListener("click", () => regenerateScripts());
 
     // =========================================================================
     // 1단계: 파일별 파싱 / 2단계: 통합 분석 (부족보장·시나리오·대사)
@@ -2892,6 +2976,7 @@ ${rawText || "없음"}
         const savedAgent = { name: currentData.agentName, phone: currentData.agentPhone, org: currentData.agentOrg };
         const savedPrompts = currentData.scriptPrompts;
         const savedProfile = currentData.profile;
+        const savedInclude = currentData.includeTabs;
 
         currentData = Object.assign({}, EMPTY_DATA, synth);
         currentData.id = "REC_" + Date.now();
@@ -2910,6 +2995,7 @@ ${rawText || "없음"}
         if (savedAgent.org) currentData.agentOrg = savedAgent.org;
         if (savedPrompts) currentData.scriptPrompts = savedPrompts;
         if (savedProfile) currentData.profile = savedProfile;
+        if (savedInclude) currentData.includeTabs = savedInclude;
 
         saveToHistory(currentData);
         syncDataToInputs();
