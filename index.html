@@ -326,36 +326,6 @@
             </div>
           </div>
 
-          <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
-            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">🏥 입원일당 계산기 단가 설정 (단위: 만원)</h3>
-            <div class="grid grid-cols-3 gap-2">
-              <div>
-                <label class="text-[10px] text-slate-400 block mb-1">질병 기본일당</label>
-                <input id="inpRateDisease" type="number" step="0.5" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white" />
-              </div>
-              <div>
-                <label class="text-[10px] text-slate-400 block mb-1">상해 기본일당</label>
-                <input id="inpRateInjury" type="number" step="0.5" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white" />
-              </div>
-              <div>
-                <label class="text-[10px] text-slate-400 block mb-1">종합병원 추가</label>
-                <input id="inpRateGeneral" type="number" step="0.5" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white" />
-              </div>
-              <div>
-                <label class="text-[10px] text-slate-400 block mb-1">상급종합 추가</label>
-                <input id="inpRateTertiary" type="number" step="0.5" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white" />
-              </div>
-              <div>
-                <label class="text-[10px] text-slate-400 block mb-1">1인실/간병 추가</label>
-                <input id="inpRateSingleRoom" type="number" step="0.5" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white" />
-              </div>
-              <div>
-                <label class="text-[10px] text-slate-400 block mb-1">중환자실/인큐</label>
-                <input id="inpRateIcu" type="number" step="0.5" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white" />
-              </div>
-            </div>
-          </div>
-
           <button id="btnApplyBasic" class="w-full py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs transition">
             ✅ 수정사항 우측 미리보기에 즉시 반영하기
           </button>
@@ -448,9 +418,6 @@
       agentOrg: localStorage.getItem("SAVED_AGENT_ORG") || "",
       agentComment: "",
       profile: { jobType: "", income: "", spouseIncome: "", childCount: "" },
-      calcRates: {
-        diseaseBase: 0, injuryBase: 0, generalAdd: 0, tertiaryAdd: 0, singleRoomAdd: 0, icuOrIncuAdd: 0
-      },
       heroMetrics: [],
       analysisMetrics: [],
       gapAnalysis: [],
@@ -1089,7 +1056,7 @@
     <!-- 계약현황 요약: 탭 위에 항상 보이는 영역 (원래 히어로 자리) -->
     <div id="summaryRoot" class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white px-5 pt-5 pb-6"></div>
 
-    <!-- Navigation Tabs: 보장분석신호등 / 계약·비교 / 상황예시 / 일당계산 / 특약·감액 -->
+    <!-- Navigation Tabs: 보장분석신호등 / 계약·비교 / 상황예시 -->
     <div class="sticky top-[49px] z-30 bg-white border-b border-slate-200 px-2.5 py-2 shadow-sm nav-tabs-bar no-print">
       <div class="flex gap-1 bg-slate-100 p-1 rounded-xl text-center overflow-x-auto no-scrollbar">
         <button data-view="view-status" class="nav-btn py-2 rounded-lg text-[11px] font-extrabold bg-slate-900 text-white shadow transition">
@@ -1100,12 +1067,6 @@
         </button>
         <button data-view="view-scenarios" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           🩺 상황예시
-        </button>
-        <button data-view="view-calc" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
-          🧮 일당계산
-        </button>
-        <button data-view="view-riders" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
-          📋 특약·감액
         </button>
       </div>
     </div>
@@ -1214,83 +1175,6 @@
 
       <div id="scenarioList" class="space-y-3.5"></div>
     </main>
-
-    <!-- VIEW 3: Hospital Daily Calculator -->
-    <section id="view-calc" class="view-section hidden p-4 space-y-4">
-      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-4">
-        <div>
-          <span class="px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-700 text-[11px] font-bold border border-teal-200">실시간 시뮬레이터</span>
-          <h2 class="text-base font-extrabold text-slate-900 mt-1">병원급별·병실별 입원일당 수령액 계산기</h2>
-          <p class="text-xs text-slate-500 mt-0.5">입원 원인과 병원 종류, 일수를 선택하면 고객님이 수령하실 예상 입원보험금 합계를 즉시 계산합니다.</p>
-        </div>
-
-        <div>
-          <label class="text-xs font-bold text-slate-700 block mb-1.5">1. 입원 원인</label>
-          <div class="grid grid-cols-2 gap-2">
-            <button data-cause="disease" class="calc-cause py-2.5 rounded-xl text-xs font-bold bg-teal-600 text-white border border-teal-600">🦠 질병 입원</button>
-            <button data-cause="injury" class="calc-cause py-2.5 rounded-xl text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200">🩹 상해(사고) 입원</button>
-          </div>
-        </div>
-
-        <div>
-          <label class="text-xs font-bold text-slate-700 block mb-1.5">2. 병원 등급 선택</label>
-          <div class="grid grid-cols-3 gap-2">
-            <button data-hosp="clinic" class="calc-hosp py-2.5 rounded-xl text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200">일반병원/의원</button>
-            <button data-hosp="general" class="calc-hosp py-2.5 rounded-xl text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200">종합병원</button>
-            <button data-hosp="tertiary" class="calc-hosp py-2.5 rounded-xl text-xs font-bold bg-teal-600 text-white border border-teal-600">대학(상급종합)</button>
-          </div>
-        </div>
-
-        <div>
-          <label class="text-xs font-bold text-slate-700 block mb-1.5">3. 병실 옵션 (중복 선택 가능)</label>
-          <div class="grid grid-cols-2 gap-2">
-            <button id="btnOptSingle" class="py-2.5 px-3 rounded-xl text-xs font-bold bg-teal-50 text-teal-800 border border-teal-500 flex items-center justify-between">
-              <span>🛏️ 1인실 이용</span>
-              <span id="txtSingleRate" class="font-extrabold"></span>
-            </button>
-            <button id="btnOptIcu" class="py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-50 text-slate-600 border border-slate-200 flex items-center justify-between">
-              <span>🚨 중환자실/인큐</span>
-              <span id="txtIcuRate" class="font-extrabold"></span>
-            </button>
-          </div>
-        </div>
-
-        <div>
-          <div class="flex justify-between items-center mb-1">
-            <label class="text-xs font-bold text-slate-700">4. 입원 일수</label>
-            <span id="calcDaysLabel" class="text-sm font-extrabold text-teal-600">5일 입원</span>
-          </div>
-          <input id="calcDaysRange" type="range" min="1" max="30" value="5" class="w-full accent-teal-600 cursor-pointer" />
-          <div class="flex justify-between text-[10px] text-slate-400 mt-0.5">
-            <span>1일</span><span>7일</span><span>14일</span><span>21일</span><span>30일</span>
-          </div>
-        </div>
-
-        <div class="rounded-2xl bg-slate-900 text-white p-4 space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-slate-300">내가 수령할 예상 입원일당 총액</span>
-            <span id="calcDailySum" class="text-xs font-semibold text-teal-300"></span>
-          </div>
-          <p id="calcTotalOutput" class="text-2xl font-black text-teal-400"></p>
-          <p id="calcBreakdownText" class="text-[11px] text-slate-300 pt-1 border-t border-slate-800"></p>
-        </div>
-      </div>
-    </section>
-
-    <!-- VIEW 4: All Riders Table + 감액기간/감액금액 상세 안내 -->
-    <section id="view-riders" class="view-section hidden p-4 space-y-3">
-      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2">
-        <div class="flex items-center justify-between">
-          <h3 class="text-sm font-extrabold text-slate-900">📋 전체 특약 및 담보별 감액기간·감액금액 상세표</h3>
-          <span class="text-[11px] text-teal-700 font-bold">면책·감액 세밀 안내</span>
-        </div>
-        <p class="text-[11px] text-slate-500">
-          가입 초기 면책기간(보장 제외 기간) 및 감액기간(50% 등 일부 지급 기간)과 감액 시 실제 지급 금액을 담보별로 세세하게 정리했습니다.
-        </p>
-        <input id="riderSearch" type="text" placeholder="특약명, 카테고리, 감액조건 검색 (예: 암, 뇌혈관, 90일, 감액)..." class="w-full px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs focus:outline-none focus:border-teal-600 focus:bg-white no-print" />
-      </div>
-      <div id="riderListContainer" class="space-y-2.5"></div>
-    </section>
 
   </div>
 
@@ -1729,122 +1613,6 @@
     window.__scenariosReady = true;
     renderScenarios();
 
-    // =========================================================================
-    // 4. 입원일당 계산기
-    // =========================================================================
-    const calcState = { cause: "disease", hosp: "tertiary", single: true, icu: false, days: 5 };
-    const rates = DATA.calcRates || { diseaseBase: 0, injuryBase: 0, generalAdd: 0, tertiaryAdd: 0, singleRoomAdd: 0, icuOrIncuAdd: 0 };
-
-    document.getElementById("txtSingleRate").textContent = \`+\${rates.singleRoomAdd || 0}만/일\`;
-    document.getElementById("txtIcuRate").textContent = \`+\${rates.icuOrIncuAdd || 0}만/일\`;
-
-    function updateCalc() {
-      const base = calcState.cause === "disease" ? Number(rates.diseaseBase || 0) : Number(rates.injuryBase || 0);
-      let hospAdd = 0;
-      if (calcState.hosp === "general") hospAdd = Number(rates.generalAdd || 0);
-      if (calcState.hosp === "tertiary") hospAdd = Number(rates.tertiaryAdd || 0);
-      const singleAdd = calcState.single ? Number(rates.singleRoomAdd || 0) : 0;
-      const icuAdd = calcState.icu ? Number(rates.icuOrIncuAdd || 0) : 0;
-
-      const daily = base + hospAdd + singleAdd + icuAdd;
-      const total = daily * calcState.days;
-
-      document.getElementById("calcDaysLabel").textContent = \`\${calcState.days}일 입원\`;
-      document.getElementById("calcDailySum").textContent = \`1일당 \${daily}만원\`;
-      document.getElementById("calcTotalOutput").textContent = \`총 \${total.toLocaleString()}만원\`;
-      document.getElementById("calcBreakdownText").textContent =
-        \`기본(\${base}만) + 병원급추가(\${hospAdd}만) + 1인실/간병(\${singleAdd}만) + 중환자/인큐(\${icuAdd}만) × \${calcState.days}일\`;
-    }
-
-    document.querySelectorAll(".calc-cause").forEach(btn => {
-      btn.addEventListener("click", () => {
-        calcState.cause = btn.dataset.cause;
-        document.querySelectorAll(".calc-cause").forEach(b => {
-          b.className = b === btn
-            ? "calc-cause py-2.5 rounded-xl text-xs font-bold bg-teal-600 text-white border border-teal-600"
-            : "calc-cause py-2.5 rounded-xl text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200";
-        });
-        updateCalc();
-      });
-    });
-
-    document.querySelectorAll(".calc-hosp").forEach(btn => {
-      btn.addEventListener("click", () => {
-        calcState.hosp = btn.dataset.hosp;
-        document.querySelectorAll(".calc-hosp").forEach(b => {
-          b.className = b === btn
-            ? "calc-hosp py-2.5 rounded-xl text-xs font-bold bg-teal-600 text-white border border-teal-600"
-            : "calc-hosp py-2.5 rounded-xl text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200";
-        });
-        updateCalc();
-      });
-    });
-
-    document.getElementById("btnOptSingle").addEventListener("click", function() {
-      calcState.single = !calcState.single;
-      this.className = calcState.single
-        ? "py-2.5 px-3 rounded-xl text-xs font-bold bg-teal-50 text-teal-800 border border-teal-500 flex items-center justify-between"
-        : "py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-50 text-slate-600 border border-slate-200 flex items-center justify-between";
-      updateCalc();
-    });
-
-    document.getElementById("btnOptIcu").addEventListener("click", function() {
-      calcState.icu = !calcState.icu;
-      this.className = calcState.icu
-        ? "py-2.5 px-3 rounded-xl text-xs font-bold bg-teal-50 text-teal-800 border border-teal-500 flex items-center justify-between"
-        : "py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-50 text-slate-600 border border-slate-200 flex items-center justify-between";
-      updateCalc();
-    });
-
-    document.getElementById("calcDaysRange").addEventListener("input", function() {
-      calcState.days = Number(this.value);
-      updateCalc();
-    });
-    updateCalc();
-
-    // =========================================================================
-    // 5. 전체 특약표 + 감액기간 / 감액금액 상세 안내 렌더링
-    // =========================================================================
-    function renderRiders() {
-      const q = (document.getElementById("riderSearch").value || "").trim().toLowerCase();
-      const allRiders = DATA.riders || [];
-      const container = document.getElementById("riderListContainer");
-
-      if (allRiders.length === 0) {
-        container.innerHTML = \`<div class="bg-white rounded-2xl p-8 text-center text-xs text-slate-400 border border-slate-200">등록된 특약 리스트가 없습니다.</div>\`;
-        return;
-      }
-
-      const list = allRiders.filter(r =>
-        !q || \`\${r.cat} \${r.name} \${r.amount} \${r.note} \${r.reductionPeriod} \${r.reductionAmount}\`.toLowerCase().includes(q)
-      );
-      container.innerHTML = list.map(r => \`
-        <div class="bg-white rounded-2xl p-3.5 border border-slate-200 space-y-2 shadow-xs">
-          <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0">
-              <span class="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">\${r.cat || '특약'}</span>
-              <p class="text-xs font-extrabold text-slate-900 mt-1">\${r.name || ''}</p>
-              <p class="text-[11px] text-slate-400">\${r.period || ''} \${r.note ? '· ' + r.note : ''}</p>
-            </div>
-            <span class="text-xs font-black text-teal-700 shrink-0">\${r.amount || ''}</span>
-          </div>
-          <!-- 담보별 감액기간 및 감액금액 세밀 표시 -->
-          <div class="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 grid grid-cols-2 gap-2 text-[11px]">
-            <div>
-              <span class="text-[10px] font-bold text-slate-400 block">⏳ 면책 및 감액기간 조건</span>
-              <span class="font-bold text-slate-800">\${r.reductionPeriod || '감액 없음 (즉시 100% 보장)'}</span>
-            </div>
-            <div class="text-right">
-              <span class="text-[10px] font-bold text-slate-400 block">💰 감액기간 중 지급금액</span>
-              <span class="font-extrabold text-amber-700">\${r.reductionAmount || r.amount || '-'}</span>
-            </div>
-          </div>
-        </div>
-      \`).join("");
-    }
-    document.getElementById("riderSearch").addEventListener("input", renderRiders);
-    renderRiders();
-
     // 탭 전환
     document.querySelectorAll(".nav-btn").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -1906,14 +1674,6 @@
       document.getElementById("inpSpouseIncome").value = pf.spouseIncome ?? "";
       document.getElementById("inpChildren").value = pf.childCount ?? "";
 
-      const r = currentData.calcRates || {};
-      document.getElementById("inpRateDisease").value = r.diseaseBase ?? 0;
-      document.getElementById("inpRateInjury").value = r.injuryBase ?? 0;
-      document.getElementById("inpRateGeneral").value = r.generalAdd ?? 0;
-      document.getElementById("inpRateTertiary").value = r.tertiaryAdd ?? 0;
-      document.getElementById("inpRateSingleRoom").value = r.singleRoomAdd ?? 0;
-      document.getElementById("inpRateIcu").value = r.icuOrIncuAdd ?? 0;
-
       const sp = currentData.scriptPrompts || {};
       document.getElementById("scriptPrompt1").value = sp.p1 || "";
       document.getElementById("scriptPrompt2").value = sp.p2 || "";
@@ -1957,15 +1717,6 @@
         income: document.getElementById("inpIncome").value,
         spouseIncome: document.getElementById("inpSpouseIncome").value,
         childCount: document.getElementById("inpChildren").value
-      };
-
-      currentData.calcRates = {
-        diseaseBase: Number(document.getElementById("inpRateDisease").value || 0),
-        injuryBase: Number(document.getElementById("inpRateInjury").value || 0),
-        generalAdd: Number(document.getElementById("inpRateGeneral").value || 0),
-        tertiaryAdd: Number(document.getElementById("inpRateTertiary").value || 0),
-        singleRoomAdd: Number(document.getElementById("inpRateSingleRoom").value || 0),
-        icuOrIncuAdd: Number(document.getElementById("inpRateIcu").value || 0)
       };
 
       currentData.scriptPrompts = {
@@ -2648,7 +2399,6 @@ ${rawText || "없음"}
   "premium2": "변경후 보험료 요약 (없으면 빈 문자열)",
   "totalRidersBadge": "총 가입 특약 개수 요약",
   "agentComment": "보장분석 총평 2문장",
-  "calcRates": { "diseaseBase": 0, "injuryBase": 0, "generalAdd": 0, "tertiaryAdd": 0, "singleRoomAdd": 0, "icuOrIncuAdd": 0 },
   "scenarios": [ { "id": "고유영문ID", "category": "emergency | hospital | injury | birth | critical 중 택1", "badge": "배지명", "icon": "이모지 1개", "title": "실제 상황 제목", "ConditionCode": "질병코드 또는 조건", "highlight": "보장 포인트 설명 (금액·숫자는 쓰지 마세요)", "payouts": [ { "riderId": "위 계약 목록의 담보 id (맨 앞 값)", "days": 일당형 담보일 때만 예상 일수(숫자), "note": "지급 기준 설명 (금액은 쓰지 마세요)" } ], "caution": "유의사항" } ],
   "scripts": { "s1": "", "s2": "", "s3": "", "s4": "", "s5": "" }
 }`;
@@ -2663,7 +2413,6 @@ ${rawText || "없음"}
 
         const savedAgent = { name: currentData.agentName, phone: currentData.agentPhone, org: currentData.agentOrg };
         const savedPrompts = currentData.scriptPrompts;
-        const savedRates = currentData.calcRates;
 
         currentData = Object.assign({}, EMPTY_DATA, synth);
         currentData.id = "REC_" + Date.now();
@@ -2671,8 +2420,6 @@ ${rawText || "없음"}
         currentData.insuredName = merged.customer.insuredName || currentData.insuredName || "";
         currentData.existingContracts = merged.existingContracts;
         currentData.proposedContracts = merged.proposedContracts;
-        currentData.riders = [...merged.existingContracts, ...merged.proposedContracts].flatMap(c =>
-          c.riders.map(r => ({ cat: r.cat, name: r.name, amount: r.amount, period: c.period, note: `${c.company} ${c.productName}`.trim(), reductionPeriod: r.reductionPeriod, reductionAmount: r.reductionAmount })));
         currentData.fileResults = items.map(u => ({
           name: u.file ? u.file.name : "입력 텍스트", status: u.status,
           docType: u.kind !== "auto" ? u.kind : (u.result?.docType || "unknown"),
@@ -2683,7 +2430,6 @@ ${rawText || "없음"}
         if (savedAgent.phone) currentData.agentPhone = savedAgent.phone;
         if (savedAgent.org) currentData.agentOrg = savedAgent.org;
         if (savedPrompts) currentData.scriptPrompts = savedPrompts;
-        if (!synth.calcRates && savedRates) currentData.calcRates = savedRates;
 
         saveToHistory(currentData);
         syncDataToInputs();
