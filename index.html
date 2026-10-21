@@ -268,13 +268,27 @@
                 <label class="text-[11px] text-slate-400 block mb-1">변경후 보험료 (선택)</label>
                 <input id="inpPremium2" type="text" placeholder="없으면 비워두세요" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
               </div>
+            </div>
+          </div>
+
+          <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
+            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">💰 다섯 친구 · 소득 기준 필요 보장 (단위: 만원)</h3>
+            <p class="text-[11px] text-slate-400 leading-relaxed">기본값은 근로소득자 · 연소득 5,000만원입니다. 고객 리포트에 병원비·생활비·부양비·법률배상·유동자산 필요 금액이 표시됩니다. 직업군을 '선택 안 함'으로 하고 연소득을 비우면 표시하지 않습니다.</p>
+            <div class="grid grid-cols-2 gap-2.5">
               <div>
-                <label class="text-[11px] text-slate-400 block mb-1">설계 / 발행번호</label>
-                <input id="inpIssueNo" type="text" placeholder="선택 입력" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
+                <label class="text-[11px] text-slate-400 block mb-1">직업군</label>
+                <select id="inpJobType" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white">
+                  <option value="">선택 안 함</option>
+                  <option value="근로소득자">근로소득자 (기본 5,000)</option>
+                  <option value="종합소득자">종합소득자 (기본 10,000)</option>
+                  <option value="고소득&순자산증가">고소득 & 순자산증가 (기본 15,000)</option>
+                  <option value="법인대표">법인대표 (기본 10,000)</option>
+                  <option value="기초소득자">기초소득자 (기본 3,000)</option>
+                </select>
               </div>
               <div>
-                <label class="text-[11px] text-slate-400 block mb-1">가입 특약 요약 배지</label>
-                <input id="inpTotalRiders" type="text" placeholder="예: 맞춤 비교설계 플랜" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
+                <label class="text-[11px] text-slate-400 block mb-1">연소득 (비우면 직업군 기본값)</label>
+                <input id="inpIncome" type="number" min="0" step="100" placeholder="예: 6000" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
               </div>
             </div>
           </div>
@@ -297,28 +311,6 @@
               <div class="col-span-2">
                 <label class="text-[11px] text-slate-400 block mb-1">고객님을 향한 가이드 상단 한마디</label>
                 <textarea id="inpAgentComment" rows="2" placeholder="고객 가이드 상단에 표시될 따뜻한 안내말을 적어주세요." class="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white"></textarea>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
-            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">💰 다섯 친구 · 소득 기준 필요 보장 (단위: 만원)</h3>
-            <p class="text-[11px] text-slate-400 leading-relaxed">기본값은 근로소득자 · 연소득 5,000만원입니다. 고객 리포트에 병원비·생활비·부양비·법률배상·유동자산 필요 금액이 표시됩니다. 직업군을 '선택 안 함'으로 하고 연소득을 비우면 표시하지 않습니다.</p>
-            <div class="grid grid-cols-2 gap-2.5">
-              <div>
-                <label class="text-[11px] text-slate-400 block mb-1">직업군</label>
-                <select id="inpJobType" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white">
-                  <option value="">선택 안 함</option>
-                  <option value="근로소득자">근로소득자 (기본 5,000)</option>
-                  <option value="종합소득자">종합소득자 (기본 10,000)</option>
-                  <option value="고소득&순자산증가">고소득 & 순자산증가 (기본 15,000)</option>
-                  <option value="법인대표">법인대표 (기본 10,000)</option>
-                  <option value="기초소득자">기초소득자 (기본 3,000)</option>
-                </select>
-              </div>
-              <div>
-                <label class="text-[11px] text-slate-400 block mb-1">연소득 (비우면 직업군 기본값)</label>
-                <input id="inpIncome" type="number" min="0" step="100" placeholder="예: 6000" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
               </div>
             </div>
           </div>
@@ -407,10 +399,8 @@
       productName: "",
       targetDate: "",
       targetLabel: "기준일",
-      issueNo: "",
       premium1: "",
       premium2: "",
-      totalRidersBadge: "",
       agentName: localStorage.getItem("SAVED_AGENT_NAME") || "",
       agentPhone: localStorage.getItem("SAVED_AGENT_PHONE") || "",
       agentOrg: localStorage.getItem("SAVED_AGENT_ORG") || "",
@@ -1150,7 +1140,6 @@
         <div class="space-y-3">
           <div class="flex items-center justify-between gap-2">
             ${DATA.targetDate ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-500/20 border border-teal-400/30 text-teal-200 text-[11px] font-semibold"><span>${DATA.mode === "child" ? "👶" : "🛡️"}</span> ${esc(computeDdayText(DATA.targetDate, DATA.targetLabel))}</span>` : `<span></span>`}
-            ${DATA.issueNo ? `<span class="text-[10px] text-slate-300 font-mono">발행번호 ${esc(DATA.issueNo)}</span>` : ""}
           </div>
           <div>
             <span class="px-2 py-0.5 rounded-md bg-white/10 text-teal-200 text-[10px] font-extrabold">계약현황 요약</span>
@@ -1184,32 +1173,32 @@
           <div>
             <span class="px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-[11px] font-extrabold">🚦 보장분석신호등</span>
             <h3 class="text-sm font-extrabold text-slate-900 mt-1">다섯 친구 기준 필요 보장 vs 현재 준비</h3>
-            <p class="text-[11px] text-slate-500 mt-0.5">연소득 ${fmt(signals[0].own)}${signals[0].spouse > 0 ? " · 배우자 " + fmt(signals[0].spouse) : ""}${signals[0].kids > 0 ? " · 자녀 " + signals[0].kids + "명" : ""} 기준 · 🟢 충분(100%↑) 🟡 주의(50%↑) 🔴 부족·미가입 ⚪ 확인 불가 (참고용)</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">연소득 ${fmt(signals[0].own)}${signals[0].spouse > 0 ? " · 배우자 " + fmt(signals[0].spouse) : ""}${signals[0].kids > 0 ? " · 자녀 " + signals[0].kids + "명" : ""} 기준 · 카드는 현재 준비 / 필요 금액 · 🟢 충분(100%↑) 🟡 주의(50%↑) 🔴 부족·미가입 ⚪ 확인 불가 (참고용)</p>
           </div>
           <div class="grid grid-cols-4 gap-1.5 text-center">
-            <div class="rounded-xl bg-emerald-50 border border-emerald-200 py-2"><p class="text-lg font-black text-emerald-700">${fcount.green}</p><p class="text-[10px] font-bold text-emerald-700">충분</p></div>
-            <div class="rounded-xl bg-amber-50 border border-amber-200 py-2"><p class="text-lg font-black text-amber-600">${fcount.yellow}</p><p class="text-[10px] font-bold text-amber-700">주의</p></div>
-            <div class="rounded-xl bg-rose-50 border border-rose-200 py-2"><p class="text-lg font-black text-rose-600">${fcount.red}</p><p class="text-[10px] font-bold text-rose-700">부족/미가입</p></div>
-            <div class="rounded-xl bg-slate-50 border border-slate-200 py-2"><p class="text-lg font-black text-slate-500">${fcount.gray}</p><p class="text-[10px] font-bold text-slate-500">확인 불가</p></div>
+            <div class="rounded-xl bg-emerald-50 border border-emerald-200 py-1.5"><p class="text-base font-black text-emerald-700">${fcount.green}</p><p class="text-[10px] font-bold text-emerald-700">충분</p></div>
+            <div class="rounded-xl bg-amber-50 border border-amber-200 py-1.5"><p class="text-base font-black text-amber-600">${fcount.yellow}</p><p class="text-[10px] font-bold text-amber-700">주의</p></div>
+            <div class="rounded-xl bg-rose-50 border border-rose-200 py-1.5"><p class="text-base font-black text-rose-600">${fcount.red}</p><p class="text-[10px] font-bold text-rose-700">부족/미가입</p></div>
+            <div class="rounded-xl bg-slate-50 border border-slate-200 py-1.5"><p class="text-base font-black text-slate-500">${fcount.gray}</p><p class="text-[10px] font-bold text-slate-500">확인 불가</p></div>
           </div>
-          <div class="space-y-2.5">
-            ${signals.map((s) => `
-              <div class="p-3 rounded-xl border ${LIGHT[s.status.color].chip} space-y-1.5">
-                <div class="flex items-center justify-between gap-2">
-                  <div class="min-w-0">
-                    <span class="text-[10px] font-bold opacity-70">${esc(s.order)}</span>
-                    <p class="text-xs font-extrabold flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full ${LIGHT[s.status.color].dot}"></span>${esc(s.label)}</p>
-                  </div>
-                  <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${LIGHT[s.status.color].chip}">${s.status.text}</span>
+          <div class="grid grid-cols-2 gap-1.5">
+            ${signals.map((s, i) => `
+              <div class="${i === signals.length - 1 && signals.length % 2 === 1 ? "col-span-2" : ""} px-2.5 py-2 rounded-lg border ${LIGHT[s.status.color].chip}">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="text-[9px] font-bold opacity-70">${esc(s.order)}</span>
+                  <span class="px-1.5 rounded text-[9px] font-extrabold border ${LIGHT[s.status.color].chip}">${s.status.text}</span>
                 </div>
-                <div class="grid grid-cols-2 gap-1 text-center text-[10px]">
-                  <div class="bg-white/80 rounded-lg py-1 border border-slate-100"><p class="text-slate-400">필요 (${esc(s.note)})</p><p class="font-black text-slate-800">${s.value === null ? "시장가격" : fmt(s.value)}</p></div>
-                  <div class="bg-white/80 rounded-lg py-1 border border-slate-100"><p class="text-slate-400">현재 준비</p><p class="font-black text-slate-800">${s.current === null ? "-" : (s.key === "legal" ? (s.current > 0 ? s.current + "건 가입" : "미가입") : (s.key === "hospital" || s.key === "living") && s.current <= 0 ? "0원" : fmt(s.current))}</p></div>
-                </div>
-                ${s.pct === null ? "" : `<div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden"><div class="${LIGHT[s.status.color].bar} h-1.5 rounded-full" style="width:${Math.min(100, s.pct)}%"></div></div>`}
-                <p class="text-[10px] opacity-80">${s.pct === null ? "" : "준비율 " + s.pct + "% · "}${esc(s.basis)}</p>
+                <p class="text-[11px] font-extrabold flex items-center gap-1 leading-tight mt-0.5"><span class="w-2 h-2 rounded-full shrink-0 ${LIGHT[s.status.color].dot}"></span>${esc(s.label)}</p>
+                <p class="text-[10px] leading-tight mt-0.5"><span class="font-black text-slate-800">${s.current === null ? "-" : (s.key === "legal" ? (s.current > 0 ? s.current + "건 가입" : "미가입") : (s.key === "hospital" || s.key === "living") && s.current <= 0 ? "0원" : fmt(s.current))}</span><span class="opacity-60"> / ${s.value === null ? "시장가격" : fmt(s.value)}</span></p>
+                ${s.pct === null ? "" : `<div class="w-full bg-white/70 rounded-full h-1 overflow-hidden mt-1"><div class="${LIGHT[s.status.color].bar} h-1 rounded-full" style="width:${Math.min(100, s.pct)}%"></div></div>`}
               </div>`).join("")}
           </div>
+          <details class="text-[10px] text-slate-500">
+            <summary class="cursor-pointer font-semibold text-slate-600">판정 기준 보기</summary>
+            <ul class="mt-1.5 space-y-1 leading-snug">
+              ${signals.map((s) => `<li><b class="text-slate-700">${esc(s.order)} ${esc(s.label)}</b> · 필요 ${esc(s.note)} — ${esc(s.basis)}</li>`).join("")}
+            </ul>
+          </details>
         </div>`;
 
       // ---- 2. 보유 계약현황 ----
@@ -1304,11 +1293,20 @@
         </div>`;
 
       // 펼침 상태 유지 (체크박스를 눌러 다시 그려도 열어둔 상품은 그대로)
-      const opened = Array.from(root.querySelectorAll("details")).map((d) => d.open);
+      // 다시 그려도 열어 둔 항목(상품별 담보, 판정 기준)은 그대로 열려 있게 합니다.
+      const contractsRoot = document.getElementById("contractsRoot");
+      const openState = (el) => Array.from(el.querySelectorAll("details")).map((d) => d.open);
+      const restoreState = (el, state) => el.querySelectorAll("details").forEach((d, i) => { if (state[i]) d.open = true; });
+      const openedMain = openState(root);
+      const openedContracts = contractsRoot ? openState(contractsRoot) : [];
       const summaryRoot = document.getElementById("summaryRoot");
       if (summaryRoot) summaryRoot.innerHTML = summaryHtml;
-      root.innerHTML = (summaryRoot ? "" : summaryHtml) + (signals.length ? friendTrafficHtml : trafficHtml) + holdHtml + diagHtml + productHtml;
-      root.querySelectorAll("details").forEach((d, i) => { if (opened[i]) d.open = true; });
+      root.innerHTML = (summaryRoot ? "" : summaryHtml) + (signals.length ? friendTrafficHtml : trafficHtml) + diagHtml + (contractsRoot ? "" : holdHtml + productHtml);
+      restoreState(root, openedMain);
+      if (contractsRoot) {
+        contractsRoot.innerHTML = holdHtml + productHtml;
+        restoreState(contractsRoot, openedContracts);
+      }
     }
 
     function generateClientHtml(data) {
@@ -1400,11 +1398,14 @@
     <!-- 계약현황 요약: 탭 위에 항상 보이는 영역 (원래 히어로 자리) -->
     <div id="summaryRoot" class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white px-5 pt-5 pb-6"></div>
 
-    <!-- Navigation Tabs: 보장분석신호등 / 계약·비교 / 상황예시 -->
+    <!-- Navigation Tabs: 보장분석신호등 / 계약·담보 현황 / 계약·비교 / 상황예시 -->
     <div class="sticky top-[49px] z-30 bg-white border-b border-slate-200 px-2.5 py-2 shadow-sm nav-tabs-bar no-print">
       <div class="flex gap-1 bg-slate-100 p-1 rounded-xl text-center overflow-x-auto no-scrollbar">
         <button data-view="view-status" class="nav-btn py-2 rounded-lg text-[11px] font-extrabold bg-slate-900 text-white shadow transition">
           🚦 보장분석신호등
+        </button>
+        <button data-view="view-contracts" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
+          📁 계약·담보 현황
         </button>
         <button data-view="view-compare" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           ⚖️ 계약·비교
@@ -1495,9 +1496,14 @@
 
     </section>
 
-    <!-- VIEW: 보장분석신호등 (신호등 / 계약현황 요약 / 보유계약 / 담보별 진단 / 상품별 담보) -->
+    <!-- VIEW: 보장분석신호등 (신호등 / 담보별 진단현황) -->
     <section id="view-status" class="view-section p-4 space-y-4">
       <div id="statusRoot" class="space-y-4"></div>
+    </section>
+
+    <!-- VIEW: 계약·담보 현황 (보유 계약현황 / 상품별 가입담보 상세) -->
+    <section id="view-contracts" class="view-section hidden p-4 space-y-4">
+      <div id="contractsRoot" class="space-y-4"></div>
     </section>
 
     <!-- VIEW 2: Scenarios -->
@@ -2007,8 +2013,6 @@
       document.getElementById("inpTargetLabel").value = currentData.targetLabel || "";
       document.getElementById("inpPremium1").value = currentData.premium1 || "";
       document.getElementById("inpPremium2").value = currentData.premium2 || "";
-      document.getElementById("inpIssueNo").value = currentData.issueNo || "";
-      document.getElementById("inpTotalRiders").value = currentData.totalRidersBadge || "";
       document.getElementById("inpAgentName").value = currentData.agentName || "";
       document.getElementById("inpAgentPhone").value = currentData.agentPhone || "";
       document.getElementById("inpAgentOrg").value = currentData.agentOrg || "";
@@ -2047,8 +2051,6 @@
       currentData.targetLabel = document.getElementById("inpTargetLabel").value;
       currentData.premium1 = document.getElementById("inpPremium1").value;
       currentData.premium2 = document.getElementById("inpPremium2").value;
-      currentData.issueNo = document.getElementById("inpIssueNo").value;
-      currentData.totalRidersBadge = document.getElementById("inpTotalRiders").value;
       currentData.agentName = document.getElementById("inpAgentName").value;
       currentData.agentPhone = document.getElementById("inpAgentPhone").value;
       currentData.agentOrg = document.getElementById("inpAgentOrg").value;
@@ -2739,10 +2741,8 @@ ${rawText || "없음"}
   "productName": "메인 상품명 또는 리모델링 플랜명",
   "targetDate": "YYYY-MM-DD 형식의 상령일/출생예정일 (모르면 빈 문자열)",
   "targetLabel": "상령일 또는 출생예정일",
-  "issueNo": "",
   "premium1": "월 납입 보험료 요약",
   "premium2": "변경후 보험료 요약 (없으면 빈 문자열)",
-  "totalRidersBadge": "총 가입 특약 개수 요약",
   "agentComment": "보장분석 총평 2문장",
   "scenarios": [ { "id": "고유영문ID", "category": "emergency | hospital | injury | birth | critical 중 택1", "badge": "배지명", "icon": "이모지 1개", "title": "실제 상황 제목", "ConditionCode": "질병코드 또는 조건", "highlight": "보장 포인트 설명 (금액·숫자는 쓰지 마세요)", "payouts": [ { "riderId": "위 계약 목록의 담보 id (맨 앞 값)", "days": 일당형 담보일 때만 예상 일수(숫자), "note": "지급 기준 설명 (금액은 쓰지 마세요)" } ], "caution": "유의사항" } ],
   "scripts": { "s1": "", "s2": "", "s3": "", "s4": "", "s5": "" }
