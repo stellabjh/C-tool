@@ -955,7 +955,29 @@
       });
     }
 
-    // 계약·비교 탭의 보장 전·후 비교표 행. 신호등과 같은 계산(computeCoverage)을 씁니다.
+    // 계약·비교 탭의 보장 전·후 비교표 행 (다섯 친구 담보 기준): 그룹 제목 줄 + 담보 줄. 소득 정보가 없으면 compareRowsHtml 을 씁니다.
+    function compareFriendRowsHtml(signals, fmtM) {
+      const DOT = { green: "#10b981", yellow: "#fbbf24", red: "#f43f5e", gray: "#94a3b8" };
+      const CHIP = { green: "bg-emerald-50 text-emerald-700 border-emerald-200", yellow: "bg-amber-50 text-amber-700 border-amber-200", red: "bg-rose-50 text-rose-700 border-rose-200", gray: "bg-slate-50 text-slate-500 border-slate-200" };
+      const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      return signals.filter((s) => s.items.length > 0).map((s) => `
+        <tr class="bg-slate-100/80">
+          <td colspan="4" class="py-1.5 px-2.5">
+            <span class="text-[10px] font-bold text-slate-400">${esc(s.order)}</span>
+            <span class="text-[11px] font-extrabold text-slate-800 ml-1">${esc(s.label)}</span>
+            <span class="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${CHIP[s.status.color]}">${s.status.text}</span>
+          </td>
+        </tr>
+        ${s.items.map((it) => `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="py-2 px-2.5 text-[11px] font-bold ${it.current > 0 ? "text-slate-800" : "text-slate-400"}"><span style="display:inline-block;width:7px;height:7px;border-radius:9999px;margin-right:6px;background:${DOT[it.status.color]}"></span>${esc(it.label)}</td>
+          <td class="py-2 px-2 text-right text-[11px] font-semibold text-slate-500 whitespace-nowrap">${it.ex > 0 ? fmtM(it.ex) : "-"}</td>
+          <td class="py-2 px-2 text-right text-[11px] font-extrabold whitespace-nowrap ${it.pr > 0 ? "text-teal-600" : "text-slate-300"}">${it.pr > 0 ? "+" + fmtM(it.pr) : "-"}</td>
+          <td class="py-2 px-2.5 text-right text-[11px] font-black whitespace-nowrap bg-slate-900/5 ${it.current > 0 ? "text-slate-900" : "text-slate-400"}">${it.current > 0 ? fmtM(it.current) : "미가입"}</td>
+        </tr>`).join("")}`).join("");
+    }
+
+    // 계약·비교 탭의 보장 전·후 비교표 행 (소득 정보가 없을 때). 신호등과 같은 계산(computeCoverage)을 씁니다.
     function compareRowsHtml(existingList, proposedList, recommended, num, fmtM) {
       return computeCoverage(existingList, proposedList, recommended, num).map((r) => `
         <tr class="hover:bg-slate-50 transition">
@@ -1088,10 +1110,12 @@
       const out = friends.map((f) => {
         const defs = GROUPS[f.key] || [];
         const items = defs.map((it) => {
-          const current = sumFor(existingList, it) + sumFor(proposedList, it);
+          const ex = sumFor(existingList, it);
+          const pr = sumFor(proposedList, it);
+          const current = ex + pr;
           const rec = it.rec === null ? null : Math.round(it.rec * (it.scale ? k : 1));
           const status = judgeItem(current, rec);
-          return { label: it.label, rec, current, status, shortfall: rec ? Math.max(rec - current, 0) : 0, pct: rec ? Math.round((current / rec) * 100) : null };
+          return { label: it.label, rec, current, ex, pr, status, shortfall: rec ? Math.max(rec - current, 0) : 0, pct: rec ? Math.round((current / rec) * 100) : null };
         });
         const rated = items.filter((x) => x.rec !== null);
         const avg = rated.length ? rated.reduce((s, x) => s + Math.min(1, x.current / x.rec), 0) / rated.length : null;
@@ -1643,7 +1667,7 @@
           <table class="w-full text-left border-collapse text-xs">
             <thead>
               <tr class="border-b border-slate-200 bg-slate-100 text-slate-700 font-extrabold text-[11px]">
-                <th class="py-2.5 px-2.5 rounded-tl-xl">주요 보장항목</th>
+                <th class="py-2.5 px-2.5 rounded-tl-xl">담보 (다섯 친구)</th>
                 <th class="py-2.5 px-2 text-right">기존 선택보장</th>
                 <th class="py-2.5 px-2 text-right text-teal-700">+ 신규 선택추가</th>
                 <th class="py-2.5 px-2.5 text-right rounded-tr-xl bg-slate-900 text-teal-300">최종 합산보장</th>
@@ -1989,7 +2013,10 @@
       document.getElementById("sumTotalPrem").textContent = (exPremSum + prPremSum).toLocaleString() + "원";
 
       // 보장 전·후 비교표: 신호등과 같은 계산(computeCoverage)을 사용합니다.
-      document.getElementById("comparisonTableBody").innerHTML = compareRowsHtml(existingList, proposedList, DATA.recommended, parseNum, formatManwon);
+      const friendSignals = computeFriendSignals(DATA.profile, existingList, proposedList, parseNum);
+      document.getElementById("comparisonTableBody").innerHTML = friendSignals.length
+        ? compareFriendRowsHtml(friendSignals, formatManwon)
+        : compareRowsHtml(existingList, proposedList, DATA.recommended, parseNum, formatManwon);
       renderStatusViews(DATA, existingList, proposedList);
       if (window.__scenariosReady) renderScenarios();
     }
@@ -1997,6 +2024,7 @@
     ${riderKind.toString()}
     ${computeCoverage.toString()}
     ${compareRowsHtml.toString()}
+    ${compareFriendRowsHtml.toString()}
     ${computeFiveFriends.toString()}
     ${computeFriendSignals.toString()}
     ${resolveScenario.toString()}
