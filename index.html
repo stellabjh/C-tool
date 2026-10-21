@@ -1287,7 +1287,12 @@
       (existingList || []).forEach((c) => {
         const isSilson = /실손|실비|의료비/.test(String(c.productName || "")) || (c.riders || []).some((r) => /실손|실비|의료비/.test(String(r.name || "")));
         if (!isSilson) return;
-        found.push({ company: c.company || "", product: c.productName || "", date: c.contractDate || "", key: genByDate(c.contractDate) });
+        const sr = (c.riders || []).filter((r) => /의료비|실손|실비|비급여|도수|충격파|증식|주사|MRI|MRA|처방조제|통원/.test(String(r.name || "")));
+        const has = (re) => sr.some((r) => re.test(String(r.name || "")));
+        found.push({
+          company: c.company || "", product: c.productName || "", date: c.contractDate || "", premium: c.premium || "", key: genByDate(c.contractDate), riders: sr,
+          manual: has(/도수|충격파|증식/), inject: has(/주사/), mri: has(/MRI|MRA/), nonCover: has(/비급여/)
+        });
       });
       const setting = DATA && DATA.silson && DATA.silson.generation;
       const forced = setting && setting !== "auto" && byKey(setting) ? setting : "";
@@ -1342,14 +1347,38 @@
           return '<div class="rounded-xl bg-slate-50 border border-slate-200 p-2.5' + (lb === "본인부담금" || lb === "보장한도" ? " col-span-2" : "") + '"><p class="text-[10px] font-bold text-slate-400">' + esc(lb) + '</p><p class="text-[11px] text-slate-800 leading-relaxed">' + esc(r.v[idx]) + "</p></div>";
         }).join("") + "</div></div></div>";
 
+      const mine = found.find((f) => f.key === cur) || found[0];
+      if (mine) {
+        const rl = mine.riders.map((r) => '<tr class="border-t border-slate-100"><td class="py-1.5 px-2 text-[11px] text-slate-700">' + esc(r.name) + '</td><td class="py-1.5 px-2 text-[11px] text-slate-700 text-right whitespace-nowrap">' + esc(r.amount || "-") + '</td><td class="py-1.5 px-2 text-[11px] text-slate-500 text-right whitespace-nowrap">' + esc(r.riderPrem || "-") + "</td></tr>").join("");
+        html += '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-2">' +
+          '<h3 class="text-sm font-extrabold text-slate-900">👤 고객 가입 내용</h3>' +
+          '<p class="text-[11px] text-slate-600">' + esc((mine.company + " " + mine.product).trim()) + (mine.date ? " · 계약일 " + esc(mine.date) : "") + (mine.premium ? " · 월 " + esc(mine.premium) : "") + "</p>" +
+          (rl ? '<div class="overflow-x-auto"><table class="w-full text-left"><thead class="bg-slate-100 text-[10px] text-slate-500"><tr><th class="py-1.5 px-2">가입 담보</th><th class="py-1.5 px-2 text-right">가입금액</th><th class="py-1.5 px-2 text-right">보험료</th></tr></thead><tbody>' + rl + "</tbody></table></div>"
+            : '<p class="text-[11px] text-slate-400">증권에서 실손 세부 담보가 확인되지 않았습니다.</p>') + "</div>";
+      }
+
       const v = SILSON_DATA.vs5[cur];
       if (cur === "g5") {
         html += '<div class="bg-teal-50 border border-teal-200 rounded-2xl p-4 text-xs text-teal-900 font-bold">✅ 이미 최신 5세대 실손입니다. 변경 비교가 필요하지 않습니다.</div>';
       } else {
+        const pts = [];
+        if (mine) {
+          const sep = cur === "good" || cur === "g4";
+          if (mine.manual) pts.push("가입 중인 도수치료·체외충격파·증식치료 보장은 5세대에서 보장 제외라 이 담보의 보장이 사라집니다.");
+          if (mine.inject) pts.push("가입 중인 비급여 주사료 보장은 5세대에서 보장 제외라 이 담보의 보장이 사라집니다.");
+          if (mine.mri) pts.push("비급여 MRI/MRA는 5세대에서 중증이 아니면 본인부담 50%(최소 5만원)로 커져 환급액이 줄어듭니다.");
+          if (!mine.manual && !mine.inject && !mine.mri) {
+            pts.push(sep ? "증권에서 비급여 3대 특약이 확인되지 않아, 5세대로 바꿔도 사라지는 비급여 특약 보장은 크지 않을 수 있습니다(증권 확인 필요)."
+              : "비급여 특약이 따로 확인되지 않았습니다. 이 세대는 도수·주사 등이 입원/통원 의료비에 포함될 수 있어, 평소 이용 여부를 상담에서 꼭 확인하세요.");
+          }
+          if (mine.premium) pts.push("현재 월 보험료는 " + mine.premium + "입니다. 5세대 예상 보험료와 비교한 뒤 결정하세요.");
+        }
+        const personalHtml = pts.length
+          ? '<div class="rounded-xl border border-teal-300 bg-teal-50 p-3 space-y-1.5"><p class="text-[11px] font-extrabold text-teal-800">👤 고객 가입 내용 기준 핵심 포인트</p><ul class="space-y-1.5">' + pts.map((t) => '<li class="flex gap-1.5 text-xs leading-relaxed text-teal-900"><span class="shrink-0">📌</span><span>' + esc(t) + "</span></li>").join("") + "</ul></div>" : "";
         const list = (items, cls, icon) => items.length
           ? '<ul class="space-y-1.5">' + items.map((t) => '<li class="flex gap-1.5 text-xs leading-relaxed ' + cls + '"><span class="shrink-0">' + icon + "</span><span>" + esc(t) + "</span></li>").join("") + "</ul>" : "";
         html += '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
-          '<h3 class="text-sm font-extrabold text-slate-900">🔄 ' + esc(g.name) + " → 5세대 실손으로 바꾸면</h3>" +
+          '<h3 class="text-sm font-extrabold text-slate-900">🔄 ' + esc(g.name) + " → 5세대 실손으로 바꾸면</h3>" + personalHtml +
           '<div class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-1.5"><p class="text-[11px] font-extrabold text-emerald-700">좋아지는 점</p>' + list(v.good, "text-emerald-900", "👍") + "</div>" +
           '<div class="rounded-xl border border-rose-200 bg-rose-50/60 p-3 space-y-1.5"><p class="text-[11px] font-extrabold text-rose-700">부족해지거나 불리해지는 점</p>' + list(v.bad, "text-rose-900", "⚠️") + "</div>" +
           (v.note.length ? '<div class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1.5"><p class="text-[11px] font-extrabold text-slate-600">참고</p>' + list(v.note, "text-slate-700", "ℹ️") + "</div>" : "") + "</div>";
@@ -2957,6 +2986,7 @@ ${keys.map(k => `상황${k}: ${situation[k]}`).join("\n")}
 [표준 담보명] ${STD_RIDER_NAMES.join(' / ')}
 - 담보명(name)은 서류에 적힌 이름 그대로 적으세요('상해80%미만후유장해', '교통사고처리지원금', '일상생활배상책임(가족/자녀포함)' 등을 줄이거나 바꾸지 마세요).
 - amount는 서류에 적힌 가입금액 글자를 그대로 적고(보험료와 혼동 금지), amountManwon은 그 글자를 만원 단위 숫자로 환산하세요.
+- 실손의료비 계약이면 상해/질병 입원·통원 의료비, 비급여 도수치료·체외충격파·증식치료, 비급여 주사료, 비급여 MRI/MRA, 처방조제비 같은 특약을 한 줄도 빼지 말고 서류에 적힌 이름 그대로 riders에 넣고, 계약일(contractDate)과 특약별 보험료(riderPrem)도 서류에 있으면 반드시 적으세요.
 - 사망보험금·사망 담보는 cat을 '사망', 일상생활배상책임·변호사선임비용·교통사고처리지원금은 cat을 '배상책임'으로 하세요.
 ${hint}
 ${!item.file ? "[입력 텍스트]\n" + rawText : (rawText ? "[설계사 참고 메모]\n" + rawText : "")}
