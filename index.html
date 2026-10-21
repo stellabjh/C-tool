@@ -661,7 +661,9 @@
             if (!reduction && r.checked && (String(r.cat) + " " + String(r.name)).includes(cat.key) && r.reductionPeriod && !/없음|즉시/.test(r.reductionPeriod)) reduction = r.reductionPeriod;
           });
         });
-        return { cat, ex, pr, total, rec, j, pct, reduction };
+        const jEx = judge(ex, rec);
+        const pctEx = rec ? Math.round((ex / rec) * 100) : 0;
+        return { cat, ex, pr, total, rec, j, pct, reduction, jEx, pctEx };
       });
     }
 
@@ -996,27 +998,27 @@
 
       // ---- 3. 담보별 진단현황 ----
       const diagHtml = `
-        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
           <div>
             <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-200">담보별 진단현황</span>
-            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">주요 담보 기존 · 신규 · 합산</h3>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">기존 계약 기준 주요 담보</h3>
             ${signals.length ? `<p class="text-[10px] text-slate-500 mt-0.5">암·뇌혈관·허혈 권장 = 연소득 2배 (병원비 1배 + 생활비 1배)</p>` : ""}
           </div>
-          <div class="space-y-2.5">
+          ${existingList.length === 0 ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-400 text-center">등록된 기존 계약이 없어 모두 미가입으로 표시됩니다.</div>` : ""}
+          <div class="space-y-1.5">
             ${rows.map((r) => `
-              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+              <div class="px-2.5 py-2 rounded-lg bg-slate-50 border border-slate-200/80">
                 <div class="flex items-center justify-between gap-2">
-                  <span class="text-xs font-extrabold text-slate-800 flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full ${LIGHT[r.j.color].dot}"></span>${esc(r.cat.label)}</span>
-                  <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold border ${LIGHT[r.j.color].chip}">${r.j.text}</span>
+                  <span class="text-[11px] font-extrabold text-slate-800 flex items-center gap-1.5 min-w-0"><span class="w-2 h-2 rounded-full shrink-0 ${LIGHT[r.jEx.color].dot}"></span><span class="truncate">${esc(r.cat.label)}</span></span>
+                  <span class="flex items-center gap-1.5 shrink-0">
+                    <span class="text-[11px] font-black text-slate-900">${fmt(r.ex)}</span>
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${LIGHT[r.jEx.color].chip}">${r.jEx.text}</span>
+                  </span>
                 </div>
-                <div class="grid grid-cols-3 gap-1 text-center text-[10px]">
-                  <div class="bg-white rounded-lg py-1 border border-slate-100"><p class="text-slate-400">기존</p><p class="font-bold text-slate-700">${fmt(r.ex)}</p></div>
-                  <div class="bg-white rounded-lg py-1 border border-slate-100"><p class="text-teal-600">+ 신규</p><p class="font-bold text-teal-700">${r.pr > 0 ? fmt(r.pr) : "-"}</p></div>
-                  <div class="bg-slate-900 rounded-lg py-1"><p class="text-slate-300">합산</p><p class="font-black text-white">${fmt(r.total)}</p></div>
+                <div class="mt-1 flex items-center gap-2">
+                  <div class="flex-1 bg-slate-200 rounded-full h-1 overflow-hidden"><div class="${LIGHT[r.jEx.color].bar} h-1 rounded-full" style="width:${Math.min(100, r.pctEx)}%"></div></div>
+                  <span class="text-[9px] text-slate-400 shrink-0">권장 ${fmt(r.rec)} · ${r.pctEx}%</span>
                 </div>
-                <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden"><div class="${LIGHT[r.j.color].bar} h-1.5 rounded-full" style="width:${Math.min(100, r.pct)}%"></div></div>
-                <div class="flex items-center justify-between text-[10px] text-slate-500"><span>권장 ${fmt(r.rec)}</span><span>준비율 ${r.pct}%</span></div>
-                ${r.reduction ? `<p class="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">⏳ 신규 담보 감액/면책: ${esc(r.reduction)}</p>` : ""}
               </div>`).join("")}
           </div>
         </div>`;
