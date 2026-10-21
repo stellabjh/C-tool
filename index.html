@@ -308,6 +308,12 @@
           </div>
 
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
+            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">🎨 리포트 테마 <span class="font-medium text-slate-400">(고객 화면 색상 · 하나만 선택)</span></h3>
+            <input type="hidden" id="inpTheme" value="default" />
+            <div id="themePicker" class="grid grid-cols-2 gap-2"></div>
+          </div>
+
+          <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
             <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">💼 담당 설계사 정보 (브라우저에 자동 기억됨)</h3>
             <div class="grid grid-cols-2 gap-2.5">
               <div>
@@ -423,6 +429,7 @@
       heroMetrics: [],
       includeTabs: { status: true, contracts: true, silson: true, compare: true },
       silson: { generation: "auto" },
+      theme: "default",
       analysisMetrics: [],
       gapAnalysis: [],
       // 신규 추가: 기존 계약 리스트 (개별 체크박스 및 상세페이지 지원)
@@ -1700,6 +1707,63 @@
       }
     }
 
+    // =========================================================================
+    // 리포트 테마 (고객 화면 색상). 기본은 현재 색상 그대로이고, 나머지는 Tailwind 팔레트를 바꿔 입힙니다.
+    // 브랜드 로고(IMC)는 어떤 테마에서도 같은 파란색(#1C39BB)입니다.
+    // =========================================================================
+    const BRAND_BLUE = "#1C39BB";
+    const REPORT_THEMES = {
+      "default": { name: "기본", desc: "짙은 상단 + 틸 포인트", sw: ["0d9488", "0f172a", "5eead4", "ccfbf1", "f1f5f9"] },
+      tealblue: {
+        name: "밝은 틸 + 블루", desc: "상단이 밝은 민트, 블루 버튼", sw: ["E9F7F6", "BFE6E0", "6EC9C3", "1C39BB", "1F3E46"],
+        pal: { 50: "E9F7F6", 100: "BFE6E0", 200: "BFE6E0", 300: "6EC9C3", 400: "6EC9C3", 500: "1C39BB", 600: "1C39BB", 700: "1C39BB", 800: "1F3E46", 900: "1F3E46", 950: "1F3E46" }, dark: "1F3E46",
+        light: { A: "E9F7F6", B: "BFE6E0", T: "1F3E46", ACC: "1C39BB" }
+      },
+      navy: {
+        name: "블루 네이비", desc: "상단만 어두운 네이비", sw: ["3A4A7A", "2C3E8C", "1C39BB", "D9E2FF", "F4F7FF"],
+        pal: { 50: "F0F4FF", 100: "D9E2FF", 200: "D9E2FF", 300: "D9E2FF", 400: "9AA6C2", 500: "1C39BB", 600: "1C39BB", 700: "1C39BB", 800: "3A4A7A", 900: "3A4A7A", 950: "3A4A7A" }, dark: "3A4A7A",
+        top: { T: "3A4A7A", T2: "2C3E8C", BTN: "1C39BB", PG: "F4F7FF" }
+      },
+      lightblue: {
+        name: "밝은 블루", desc: "상단이 밝은 화이트·블루", sw: ["FDFDFB", "D9E2FF", "9AA6C2", "3A4A7A", "1C39BB"],
+        pal: { 50: "F0F4FF", 100: "D9E2FF", 200: "D9E2FF", 300: "9AA6C2", 400: "9AA6C2", 500: "1C39BB", 600: "1C39BB", 700: "1C39BB", 800: "3A4A7A", 900: "3A4A7A", 950: "3A4A7A" }, dark: "3A4A7A",
+        light: { A: "FDFDFB", B: "D9E2FF", T: "3A4A7A", ACC: "1C39BB" }
+      }
+    };
+    const THEME_ORDER = ["default", "tealblue", "navy", "lightblue"];
+
+    // <head>에 넣을 테마 설정(Tailwind 팔레트 + 덧씌우는 CSS). 기본 테마는 로고 색만 고정합니다.
+    function reportThemeHead(key) {
+      const t = REPORT_THEMES[key] || REPORT_THEMES["default"];
+      let css = "#uiBrandShort{background:" + BRAND_BLUE + "!important;color:#fff!important}" +
+        "#uiBtnCall{background:#0d9488!important;color:#fff!important}#uiBtnCall:hover{background:#14b8a6!important}" +
+        "#btnOpenDocsModal{background:#F3B6C0!important;color:#000!important}#btnOpenDocsModal:hover{background:#f0a3b0!important}";
+      let cfg = "";
+      if (t.pal) {
+        cfg = "<script>if(window.tailwind)tailwind.config={theme:{extend:{colors:{teal:" + JSON.stringify(Object.fromEntries(Object.entries(t.pal).map(([k, v]) => [k, "#" + v]))) + ",slate:{900:\"#" + t.dark + "\"}}}}};<\/script>";
+        if (t.light) {
+          const m = t.light;
+          css += "header.sticky{background:#fffffff2!important;color:#" + m.T + "!important;border-color:#" + m.B + "!important}" +
+            "header .text-teal-300,header .text-slate-300{color:#" + m.ACC + "!important}" +
+            "header button{background:#" + m.A + "!important;color:#" + m.T + "!important;border-color:#" + m.B + "!important}" +
+            "#summaryRoot{background:linear-gradient(135deg,#" + m.A + ",#" + m.B + ")!important;color:#" + m.T + "!important}" +
+            "#summaryRoot .text-white,#summaryRoot .text-slate-100,#summaryRoot .text-slate-300,#summaryRoot .text-slate-400{color:#" + m.T + "!important}" +
+            "#summaryRoot [class*=\"text-teal\"]{color:#" + m.ACC + "!important}" +
+            "#summaryRoot [class*=\"bg-white\"],#summaryRoot [class*=\"bg-slate-950\"]{background:#fff!important;border-color:#" + m.B + "!important}" +
+            "#summaryRoot [class*=\"bg-teal-500\"]{background:#ffffffb3!important;border-color:#" + m.ACC + "66!important}";
+        } else if (t.top) {
+          const m = t.top;
+          css += "body{background:#" + m.PG + "!important}" +
+            "header.sticky{background:#" + m.T + "f2!important;border-color:#" + m.T + "!important}" +
+            "header button{background:#ffffff1f!important;border-color:#ffffff33!important;color:#fff!important}" +
+            "#summaryRoot{background:linear-gradient(135deg,#" + m.T + ",#" + m.T2 + ")!important}" +
+            ".bg-slate-900,.bg-slate-800{background:#" + m.T + "!important}" +
+            "thead,thead th{background:#" + m.T + "!important}";
+        }
+      }
+      return cfg + "<style id=\"themeCss\">" + css + "</style>";
+    }
+
     function generateClientHtml(data, opts) {
       const editMode = !!(opts && opts.editMode);
       const safeData = JSON.parse(JSON.stringify(data));
@@ -1721,6 +1785,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
   <title>${displayClient}님 전용 보장분석 리포트 | ${displayProduct}</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"><\/script>
+  ${reportThemeHead(safeData.theme)}
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -1911,7 +1976,7 @@
       </div>
       <div class="flex items-center gap-1.5 shrink-0">
         <a id="uiBtnCall" href="#" class="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-extrabold flex items-center gap-1 shadow">
-          <span>📞</span> 전화상담
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="#EF4444" stroke="#fff" stroke-width="1.2" paint-order="stroke" d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/></svg> 전화상담
         </a>
         <button id="btnOpenDocsModal" class="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1">
           <span>📑</span> 청구서류
@@ -2351,6 +2416,27 @@
       }
     });
 
+    function renderThemePicker() {
+      const cur = document.getElementById("inpTheme").value || "default";
+      document.getElementById("themePicker").innerHTML = THEME_ORDER.map((k) => {
+        const t = REPORT_THEMES[k], on = k === cur;
+        return `<button type="button" data-theme="${k}" role="checkbox" aria-checked="${on}" class="text-left rounded-xl border-2 p-2.5 transition ${on ? "border-teal-400 bg-teal-950/60" : "border-slate-700 bg-slate-950 hover:border-slate-500"}">
+          <span class="flex items-center gap-1.5 text-xs font-extrabold text-slate-100">
+            <span class="inline-flex items-center justify-center w-4 h-4 rounded border-2 border-teal-400 text-[10px] leading-none ${on ? "bg-teal-400 text-slate-950" : ""}">${on ? "✓" : ""}</span>${t.name}
+          </span>
+          <span class="flex gap-1 my-2">${t.sw.map((c) => `<span class="flex-1 h-5 rounded border border-white/10" style="background:#${c}"></span>`).join("")}</span>
+          <span class="block text-[10px] text-slate-400">${t.desc}</span>
+        </button>`;
+      }).join("");
+    }
+    document.getElementById("themePicker").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-theme]");
+      if (!b) return;
+      document.getElementById("inpTheme").value = b.getAttribute("data-theme");
+      renderThemePicker();
+      syncInputsToData();
+    });
+
     function syncDataToInputs() {
       document.getElementById("inpMode").value = currentData.mode || "adult";
       document.getElementById("inpClientName").value = currentData.clientName || "";
@@ -2371,6 +2457,8 @@
       // 배우자 연소득·자녀 수 입력은 없앴으므로, 예전 기록에 남아 있어도 이어받지 않습니다.
       currentData.profile = { jobType: pf.jobType || "", income: pf.income ?? "" };
       document.getElementById("inpSilsonGen").value = (currentData.silson && currentData.silson.generation) || "auto";
+      document.getElementById("inpTheme").value = REPORT_THEMES[currentData.theme] ? currentData.theme : "default";
+      renderThemePicker();
 
       const sp = currentData.scriptPrompts || {};
       document.getElementById("scriptPrompt1").value = sp.p1 || "";
@@ -2413,6 +2501,7 @@
         income: document.getElementById("inpIncome").value
       };
       currentData.silson = { generation: document.getElementById("inpSilsonGen").value || "auto" };
+      currentData.theme = document.getElementById("inpTheme").value || "default";
 
       currentData.scriptPrompts = {
         p1: document.getElementById("scriptPrompt1").value,
@@ -3159,6 +3248,8 @@ ${rawText || "없음"}
         const savedPrompts = currentData.scriptPrompts;
         const savedProfile = currentData.profile;
         const savedInclude = currentData.includeTabs;
+        const savedTheme = currentData.theme;
+        const savedSilson = currentData.silson;
 
         currentData = Object.assign({}, EMPTY_DATA, synth);
         currentData.id = "REC_" + Date.now();
@@ -3178,6 +3269,8 @@ ${rawText || "없음"}
         if (savedPrompts) currentData.scriptPrompts = savedPrompts;
         if (savedProfile) currentData.profile = savedProfile;
         if (savedInclude) currentData.includeTabs = savedInclude;
+        if (savedTheme) currentData.theme = savedTheme;
+        if (savedSilson) currentData.silson = savedSilson;
 
         saveToHistory(currentData);
         syncDataToInputs();
