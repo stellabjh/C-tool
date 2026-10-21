@@ -1267,7 +1267,7 @@
 
       // ---- 3. 담보별 진단현황 ----
       // 담보 8항목 줄 (기존 계약 기준) — 소득 정보가 없을 때 기본으로, 있을 때는 '세부 담보 보기'에 넣습니다.
-      const flatRowsHtml = rows.map((r) => `
+      const flatRowHtml = (r) => `
         <div class="px-2.5 py-2 rounded-lg bg-slate-50 border border-slate-200/80">
           <div class="flex items-center justify-between gap-2">
             <span class="text-[11px] font-extrabold text-slate-800 flex items-center gap-1.5 min-w-0"><span class="w-2 h-2 rounded-full shrink-0 ${LIGHT[r.jEx.color].dot}"></span><span class="truncate">${esc(r.cat.label)}</span></span>
@@ -1280,43 +1280,65 @@
             <div class="flex-1 bg-slate-200 rounded-full h-1 overflow-hidden"><div class="${LIGHT[r.jEx.color].bar} h-1 rounded-full" style="width:${Math.min(100, r.pctEx)}%"></div></div>
             <span class="text-[9px] text-slate-400 shrink-0">권장 ${fmt(r.rec)} · ${r.pctEx}%</span>
           </div>
-        </div>`).join("");
+        </div>`;
+      const flatRowsHtml = rows.map(flatRowHtml).join("");
 
       // 기존 계약만 기준으로 한 다섯 친구 진단 (신호등은 기존 + 신규 합산, 이쪽은 기존 계약만)
       const rowsEx = computeCoverage(existingList, [], effectiveRecommended(DATA.profile, DATA.recommended), parseNum);
       const signalsEx = computeFriendSignals(DATA.profile, rowsEx, existingList, [], parseNum);
       const noExisting = existingList.length === 0 ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-400 text-center">등록된 기존 계약이 없어 모두 미가입으로 표시됩니다.</div>` : "";
+      // 친구별로 나눠 보여줄 담보 목록 (기존 계약 기준)
+      const rowOf = (key) => rowsEx.find((x) => x.cat.key === key);
+      const catRows = (keys) => keys.map(rowOf).filter(Boolean).map(flatRowHtml).join("");
+      const ridersWhere = (test) => {
+        const out = [];
+        existingList.forEach((c) => {
+          if (!c.checked) return;
+          (c.riders || []).forEach((r) => { if (r.checked && test(String(r.cat || "") + " " + String(r.name || ""))) out.push({ r, company: c.company }); });
+        });
+        return out;
+      };
+      const riderLine = (it) => `
+        <div class="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80 flex items-center justify-between gap-2">
+          <span class="min-w-0 truncate text-[11px]"><span class="font-bold text-slate-800">${esc(it.r.name)}</span> <span class="text-[9px] text-slate-400">${esc(it.company || "")}</span></span>
+          <span class="text-[11px] font-black text-slate-900 shrink-0">${(() => { const v = parseNum(it.r.amountManwon !== undefined ? it.r.amountManwon : it.r.amount); return v > 0 ? fmt(v) : esc(it.r.amount); })()}</span>
+        </div>`;
+      const listOrNone = (items, none) => items.length ? items.map(riderLine).join("") : `<p class="px-2.5 py-1.5 text-[10px] text-slate-400">${none}</p>`;
+      const childrenOf = (key) => {
+        if (key === "hospital") return catRows(["일반암", "뇌혈관", "허혈", "유사암", "수술", "골절"]);
+        if (key === "living") return catRows(["입원", "1인실"]);
+        if (key === "support") return listOrNone(ridersWhere((s) => s.includes("사망")), "가입한 사망 담보가 없습니다");
+        if (key === "legal") return listOrNone(ridersWhere((s) => /배상|변호사|교통사고처리/.test(s)), "가입한 배상책임 담보가 없습니다");
+        return "";
+      };
       const friendDiagHtml = signalsEx.length === 0 ? "" : `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
           <div>
             <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-200">담보별 진단현황</span>
             <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">기존 계약 기준 다섯 친구</h3>
-            <p class="text-[10px] text-slate-500 mt-0.5">연소득 ${fmt(signalsEx[0].own)} 기준 필요 보장 대비 현재 가입한 기존 계약의 준비 정도</p>
+            <p class="text-[10px] text-slate-500 mt-0.5">연소득 ${fmt(signalsEx[0].own)} 기준 필요 보장 대비 현재 가입한 기존 계약의 준비 정도 · 암·뇌혈관·허혈 권장 = 연소득 2배</p>
           </div>
           ${noExisting}
-          <div class="space-y-1.5">
+          <div class="space-y-2.5">
             ${signalsEx.map((s) => `
-              <div class="px-2.5 py-2 rounded-lg bg-slate-50 border border-slate-200/80">
-                <div class="flex items-center justify-between gap-2">
-                  <span class="text-[11px] font-extrabold text-slate-800 flex items-center gap-1.5 min-w-0"><span class="w-2 h-2 rounded-full shrink-0 ${LIGHT[s.status.color].dot}"></span><span class="truncate"><span class="text-[9px] font-bold text-slate-400">${esc(s.order)}</span> ${esc(s.label)}</span></span>
-                  <span class="flex items-center gap-1.5 shrink-0">
-                    <span class="text-[11px] font-black text-slate-900">${s.current === null ? "-" : (s.key === "legal" ? (s.current > 0 ? s.current + "건 가입" : "미가입") : (s.key === "hospital" || s.key === "living") && s.current <= 0 ? "0원" : fmt(s.current))}</span>
-                    <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${LIGHT[s.status.color].chip}">${s.status.text}</span>
-                  </span>
+              <div class="rounded-xl border border-slate-200 p-2 space-y-1.5">
+                <div class="px-1 space-y-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 min-w-0"><span class="w-2.5 h-2.5 rounded-full shrink-0 ${LIGHT[s.status.color].dot}"></span><span class="truncate"><span class="text-[9px] font-bold text-slate-400">${esc(s.order)}</span> ${esc(s.label)}</span></span>
+                    <span class="flex items-center gap-1.5 shrink-0">
+                      <span class="text-xs font-black text-slate-900">${s.current === null ? "-" : (s.key === "legal" ? (s.current > 0 ? s.current + "건 가입" : "미가입") : (s.key === "hospital" || s.key === "living") && s.current <= 0 ? "0원" : fmt(s.current))}</span>
+                      <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${LIGHT[s.status.color].chip}">${s.status.text}</span>
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    ${s.pct === null ? `<span class="flex-1"></span>` : `<div class="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden"><div class="${LIGHT[s.status.color].bar} h-1.5 rounded-full" style="width:${Math.min(100, s.pct)}%"></div></div>`}
+                    <span class="text-[9px] text-slate-400 shrink-0">필요 ${s.value === null ? "시장가격" : fmt(s.value)}${s.pct === null ? "" : " · " + s.pct + "%"}</span>
+                  </div>
+                  <p class="text-[9px] text-slate-400 leading-snug">${esc(s.basis)}</p>
                 </div>
-                <div class="mt-1 flex items-center gap-2">
-                  ${s.pct === null
-                    ? `<span class="flex-1 text-[9px] text-slate-400 truncate">${esc(s.key === "legal" ? "배상책임·변호사선임 담보 가입 여부" : "보험 서류로는 확인할 수 없는 항목")}</span>`
-                    : `<div class="flex-1 bg-slate-200 rounded-full h-1 overflow-hidden"><div class="${LIGHT[s.status.color].bar} h-1 rounded-full" style="width:${Math.min(100, s.pct)}%"></div></div>`}
-                  <span class="text-[9px] text-slate-400 shrink-0">필요 ${s.value === null ? "시장가격" : fmt(s.value)}${s.pct === null ? "" : " · " + s.pct + "%"}</span>
-                </div>
+                ${childrenOf(s.key) ? `<div class="space-y-1 pl-2 border-l-2 border-slate-200">${childrenOf(s.key)}</div>` : ""}
               </div>`).join("")}
           </div>
-          <details class="text-[10px] text-slate-500">
-            <summary class="cursor-pointer font-semibold text-slate-600">세부 담보 보기 (기존 계약 기준)</summary>
-            <p class="mt-1.5 mb-1 text-[10px] text-slate-500">암·뇌혈관·허혈 권장 = 연소득 2배 (병원비 1배 + 생활비 1배)</p>
-            <div class="space-y-1.5">${flatRowsHtml}</div>
-          </details>
         </div>`;
       const flatDiagHtml = `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
