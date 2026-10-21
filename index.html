@@ -26,8 +26,8 @@
   <!-- Top Header -->
   <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shrink-0">
     <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-teal-500 flex items-center justify-center text-slate-950 font-black text-base shadow-lg shadow-teal-500/20">
-        AI
+      <div class="min-w-[2.25rem] h-9 px-2 rounded-xl bg-teal-500 flex items-center justify-center text-slate-950 font-black text-sm tracking-tight shadow-lg shadow-teal-500/20">
+        IMC
       </div>
       <div>
         <h1 class="text-base font-extrabold text-white flex items-center gap-2">
@@ -226,18 +226,14 @@
         <!-- TAB 3: Basic Info Editor -->
         <div id="tab-basic" class="tab-pane hidden space-y-4">
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
-            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">🎨 상품 모드 및 브랜드 설정</h3>
+            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">🎨 상품 모드 설정</h3>
             <div class="grid grid-cols-2 gap-2.5">
-              <div>
+              <div class="col-span-2">
                 <label class="text-[11px] text-slate-400 block mb-1">가이드 모드 선택</label>
                 <select id="inpMode" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white">
                   <option value="adult">🧑 성인 종합 / 암 / 간병 모드</option>
                   <option value="child">👶 태아 / 어린이 보험 모드</option>
                 </select>
-              </div>
-              <div>
-                <label class="text-[11px] text-slate-400 block mb-1">브랜드 로고 약어 (상단 배지)</label>
-                <input id="inpBrandShort" type="text" placeholder="예: Hi, KB, DB, 삼성" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
               </div>
             </div>
           </div>
@@ -351,15 +347,7 @@
           <span class="w-2.5 h-2.5 rounded-full bg-teal-400 animate-pulse"></span>
           <span class="text-xs font-bold text-slate-300">실시간 고객 화면 미리보기 (계약/담보 개별 체크 시뮬레이션 + 감액기간 안내)</span>
         </div>
-        <span class="text-[11px] text-slate-400">우측 화면의 [⚖️ 계약비교] 탭에서 계약과 담보를 직접 체크해 보세요!</span>
-      </div>
-      <div class="px-6 py-2 bg-slate-900/30 border-b border-slate-800 flex items-center gap-x-4 gap-y-1 flex-wrap shrink-0">
-        <span class="text-[11px] font-bold text-slate-300">📤 고객 리포트에 포함할 화면</span>
-        <label class="flex items-center gap-1.5 text-[11px] text-slate-200 cursor-pointer"><input type="checkbox" data-include="status" checked class="accent-teal-500 w-3.5 h-3.5" /> 🚦 보장분석신호등</label>
-        <label class="flex items-center gap-1.5 text-[11px] text-slate-200 cursor-pointer"><input type="checkbox" data-include="contracts" checked class="accent-teal-500 w-3.5 h-3.5" /> 📁 계약·담보 현황</label>
-        <label class="flex items-center gap-1.5 text-[11px] text-slate-200 cursor-pointer"><input type="checkbox" data-include="compare" checked class="accent-teal-500 w-3.5 h-3.5" /> ⚖️ 계약·비교</label>
-        <label class="flex items-center gap-1.5 text-[11px] text-slate-200 cursor-pointer"><input type="checkbox" data-include="scenarios" checked class="accent-teal-500 w-3.5 h-3.5" /> 🩺 상황예시</label>
-        <span class="text-[10px] text-slate-500">체크를 끄면 미리보기와 다운로드 파일에서 해당 화면이 빠집니다</span>
+        <span class="text-[11px] text-slate-400">탭 이름 옆 체크박스로 고객 리포트에 넣을 화면을 고르세요</span>
       </div>
       <div class="flex-1 p-4 overflow-hidden flex items-center justify-center">
         <iframe id="previewFrame" class="w-full h-full rounded-2xl border border-slate-800 bg-white shadow-2xl"></iframe>
@@ -406,7 +394,7 @@
       id: "",
       savedAt: "",
       mode: "adult",
-      brandShort: "Hi",
+      brandShort: "IMC",
       clientName: "",
       insuredName: "",
       productName: "",
@@ -963,7 +951,29 @@
       });
     }
 
-    // 계약·비교 탭의 보장 전·후 비교표 행. 신호등과 같은 계산(computeCoverage)을 씁니다.
+    // 계약·비교 탭의 보장 전·후 비교표 행 (다섯 친구 담보 기준): 그룹 제목 줄 + 담보 줄. 소득 정보가 없으면 compareRowsHtml 을 씁니다.
+    function compareFriendRowsHtml(signals, fmtM) {
+      const DOT = { green: "#10b981", yellow: "#fbbf24", red: "#f43f5e", gray: "#94a3b8" };
+      const CHIP = { green: "bg-emerald-50 text-emerald-700 border-emerald-200", yellow: "bg-amber-50 text-amber-700 border-amber-200", red: "bg-rose-50 text-rose-700 border-rose-200", gray: "bg-slate-50 text-slate-500 border-slate-200" };
+      const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      return signals.filter((s) => s.items.length > 0).map((s) => `
+        <tr class="bg-slate-100/80">
+          <td colspan="4" class="py-1.5 px-2.5">
+            <span class="text-[10px] font-bold text-slate-400">${esc(s.order)}</span>
+            <span class="text-[11px] font-extrabold text-slate-800 ml-1">${esc(s.label)}</span>
+            <span class="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${CHIP[s.status.color]}">${s.status.text}</span>
+          </td>
+        </tr>
+        ${s.items.map((it) => `
+        <tr class="hover:bg-slate-50 transition">
+          <td class="py-2 px-2.5 text-[11px] font-bold ${it.current > 0 ? "text-slate-800" : "text-slate-400"}"><span style="display:inline-block;width:7px;height:7px;border-radius:9999px;margin-right:6px;background:${DOT[it.status.color]}"></span>${esc(it.label)}</td>
+          <td class="py-2 px-2 text-right text-[11px] font-semibold text-slate-500 whitespace-nowrap">${it.ex > 0 ? fmtM(it.ex) : "-"}</td>
+          <td class="py-2 px-2 text-right text-[11px] font-extrabold whitespace-nowrap ${it.pr > 0 ? "text-teal-600" : "text-slate-300"}">${it.pr > 0 ? "+" + fmtM(it.pr) : "-"}</td>
+          <td class="py-2 px-2.5 text-right text-[11px] font-black whitespace-nowrap bg-slate-900/5 ${it.current > 0 ? "text-slate-900" : "text-slate-400"}">${it.current > 0 ? fmtM(it.current) : "미가입"}</td>
+        </tr>`).join("")}`).join("");
+    }
+
+    // 계약·비교 탭의 보장 전·후 비교표 행 (소득 정보가 없을 때). 신호등과 같은 계산(computeCoverage)을 씁니다.
     function compareRowsHtml(existingList, proposedList, recommended, num, fmtM) {
       return computeCoverage(existingList, proposedList, recommended, num).map((r) => `
         <tr class="hover:bg-slate-50 transition">
@@ -1096,10 +1106,12 @@
       const out = friends.map((f) => {
         const defs = GROUPS[f.key] || [];
         const items = defs.map((it) => {
-          const current = sumFor(existingList, it) + sumFor(proposedList, it);
+          const ex = sumFor(existingList, it);
+          const pr = sumFor(proposedList, it);
+          const current = ex + pr;
           const rec = it.rec === null ? null : Math.round(it.rec * (it.scale ? k : 1));
           const status = judgeItem(current, rec);
-          return { label: it.label, rec, current, status, shortfall: rec ? Math.max(rec - current, 0) : 0, pct: rec ? Math.round((current / rec) * 100) : null };
+          return { label: it.label, rec, current, ex, pr, status, shortfall: rec ? Math.max(rec - current, 0) : 0, pct: rec ? Math.round((current / rec) * 100) : null };
         });
         const rated = items.filter((x) => x.rec !== null);
         const avg = rated.length ? rated.reduce((s, x) => s + Math.min(1, x.current / x.rec), 0) / rated.length : null;
@@ -1479,7 +1491,8 @@
       }
     }
 
-    function generateClientHtml(data) {
+    function generateClientHtml(data, opts) {
+      const editMode = !!(opts && opts.editMode);
       const safeData = JSON.parse(JSON.stringify(data));
       delete safeData.scripts;
       delete safeData.scriptPrompts;
@@ -1546,7 +1559,7 @@
   <header class="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md text-white border-b border-slate-800 no-print">
     <div class="max-w-5xl mx-auto px-4 py-2.5 flex items-center justify-between gap-2">
       <div class="flex items-center gap-2 min-w-0">
-        <span id="uiBrandShort" class="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-teal-500 text-slate-950 font-extrabold text-xs shrink-0">Hi</span>
+        <span id="uiBrandShort" class="inline-flex items-center justify-center min-w-[1.75rem] h-7 px-1.5 rounded-lg bg-teal-500 text-slate-950 font-extrabold text-xs tracking-tight shrink-0">IMC</span>
         <div class="truncate">
           <p id="uiHeaderTitle" class="text-xs font-bold text-teal-300 leading-tight truncate"></p>
           <p id="uiHeaderSub" class="text-[11px] text-slate-300 leading-tight truncate"></p>
@@ -1650,7 +1663,7 @@
           <table class="w-full text-left border-collapse text-xs">
             <thead>
               <tr class="border-b border-slate-200 bg-slate-100 text-slate-700 font-extrabold text-[11px]">
-                <th class="py-2.5 px-2.5 rounded-tl-xl">주요 보장항목</th>
+                <th class="py-2.5 px-2.5 rounded-tl-xl">담보 (다섯 친구)</th>
                 <th class="py-2.5 px-2 text-right">기존 선택보장</th>
                 <th class="py-2.5 px-2 text-right text-teal-700">+ 신규 선택추가</th>
                 <th class="py-2.5 px-2.5 text-right rounded-tr-xl bg-slate-900 text-teal-300">최종 합산보장</th>
@@ -1727,14 +1740,14 @@
         </div>
         <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
           <p class="font-bold text-slate-900 mb-1">2. 입원 / 수술 시</p>
-          <p class="text-slate-600">• 진단서 또는 입퇴원확인서(병명·입원기간 명시), 수술확인서(수술명·수가코드 명시), 진료비세부내역서</p>
+          <p class="text-slate-600">• 진료비영수증, 진단서 또는 입퇴원확인서(병명·입원기간 명시), 수술확인서(수술명·수가코드 명시), 진료비세부내역서</p>
         </div>
         <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
           <p class="font-bold text-slate-900 mb-1">3. 골절 / 화상 / 창상봉합술</p>
-          <p class="text-slate-600">• 질병분류코드(S/T코드) 확인서류, 진료비세부내역서(처치·봉합 수가코드 확인용)</p>
+          <p class="text-slate-600">• 진료비영수증, 질병분류코드(S/T코드) 확인서류, 진료비세부내역서(처치·봉합 수가코드 확인용)</p>
         </div>
       </div>
-      <p class="text-[11px] text-teal-700 font-semibold text-center bg-teal-50 py-2 rounded-xl">
+      <p class="text-[13px] text-teal-700 font-semibold text-center bg-teal-50 py-2.5 rounded-xl">
         헷갈리실 땐 병원에서 퇴원/수납 전 언제든 먼저 연락주세요!
       </p>
     </div>
@@ -1742,6 +1755,7 @@
 
   <script>
     const DATA = ${safeJson};
+    const EDIT_MODE = ${editMode ? "true" : "false"};
 
     // 숫자 파싱 헬퍼 (만원 단위 또는 원 단위 변환)
     function parseNum(str) {
@@ -1785,7 +1799,7 @@
     const cName = DATA.clientName || "고객";
     const pName = DATA.productName || "맞춤 보장 설계안";
 
-    document.getElementById("uiBrandShort").textContent = DATA.brandShort || "Hi";
+    document.getElementById("uiBrandShort").textContent = "IMC"; // 브랜드 로고는 항상 IMC
     document.getElementById("uiHeaderTitle").textContent = \`\${cName}님 전용 맞춤 가이드\`;
     document.getElementById("uiHeaderSub").textContent = pName;
 
@@ -1995,7 +2009,10 @@
       document.getElementById("sumTotalPrem").textContent = (exPremSum + prPremSum).toLocaleString() + "원";
 
       // 보장 전·후 비교표: 신호등과 같은 계산(computeCoverage)을 사용합니다.
-      document.getElementById("comparisonTableBody").innerHTML = compareRowsHtml(existingList, proposedList, DATA.recommended, parseNum, formatManwon);
+      const friendSignals = computeFriendSignals(DATA.profile, existingList, proposedList, parseNum);
+      document.getElementById("comparisonTableBody").innerHTML = friendSignals.length
+        ? compareFriendRowsHtml(friendSignals, formatManwon)
+        : compareRowsHtml(existingList, proposedList, DATA.recommended, parseNum, formatManwon);
       renderStatusViews(DATA, existingList, proposedList);
       if (window.__scenariosReady) renderScenarios();
     }
@@ -2003,6 +2020,7 @@
     ${riderKind.toString()}
     ${computeCoverage.toString()}
     ${compareRowsHtml.toString()}
+    ${compareFriendRowsHtml.toString()}
     ${computeFiveFriends.toString()}
     ${computeFriendSignals.toString()}
     ${resolveScenario.toString()}
@@ -2100,21 +2118,63 @@
     });
 
     // 설계사가 고른 화면만 고객에게 보여줍니다. (제외한 화면은 탭과 내용, 인쇄에서도 빠짐)
+    // 미리보기(편집 모드)에서는 탭 이름 옆 체크박스로 포함 여부를 고르고, 고객용 파일에는 체크박스가 없습니다.
     (function () {
       const inc = Object.assign({ status: true, contracts: true, compare: true, scenarios: true }, DATA.includeTabs || {});
       const map = { status: "view-status", contracts: "view-contracts", compare: "view-compare", scenarios: "view-scenarios" };
-      let first = null;
-      Object.keys(map).forEach(function (k) {
+      const keys = Object.keys(map);
+      if (!EDIT_MODE) {
+        let first = null;
+        keys.forEach(function (k) {
+          const btn = document.querySelector('.nav-btn[data-view="' + map[k] + '"]');
+          const sec = document.getElementById(map[k]);
+          if (inc[k] === false) {
+            if (btn) btn.setAttribute("data-excluded", "1");
+            if (sec) sec.setAttribute("data-excluded", "1");
+          } else if (!first) {
+            first = btn;
+          }
+        });
+        if (first) first.click();
+        return;
+      }
+      keys.forEach(function (k) {
         const btn = document.querySelector('.nav-btn[data-view="' + map[k] + '"]');
         const sec = document.getElementById(map[k]);
-        if (inc[k] === false) {
-          if (btn) btn.setAttribute("data-excluded", "1");
-          if (sec) sec.setAttribute("data-excluded", "1");
-        } else if (!first) {
-          first = btn;
-        }
+        if (!btn || !sec) return;
+        const box = document.createElement("span");
+        box.setAttribute("role", "checkbox");
+        box.title = "체크하면 고객 리포트에 포함됩니다";
+        box.style.cssText = "display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;margin-right:5px;border-radius:4px;border:1.5px solid #0d9488;font-size:10px;font-weight:900;line-height:1;vertical-align:-2px;cursor:pointer;";
+        const banner = document.createElement("div");
+        banner.className = "no-print";
+        banner.style.cssText = "margin:0 0 12px;padding:8px 12px;border-radius:12px;background:#fff1f2;border:1px solid #fecdd3;color:#be123c;font-size:11px;font-weight:700;display:none;";
+        banner.textContent = "이 화면은 고객 리포트에서 제외됩니다 (탭 이름 옆 체크박스를 켜면 포함)";
+        sec.insertBefore(banner, sec.firstChild);
+        const paint = function () {
+          const on = inc[k] !== false;
+          box.setAttribute("aria-checked", on ? "true" : "false");
+          box.style.background = on ? "#0d9488" : "transparent";
+          box.style.color = "#ffffff";
+          box.textContent = on ? "✓" : "";
+          btn.style.opacity = on ? "" : "0.55";
+          banner.style.display = on ? "none" : "block";
+        };
+        box.addEventListener("click", function (e) {
+          e.stopPropagation();
+          e.preventDefault();
+          const next = inc[k] === false;
+          const remain = keys.filter(function (x) { return x === k ? next : inc[x] !== false; }).length;
+          if (remain === 0) { window.parent.postMessage({ type: "includeTabsBlocked" }, "*"); return; }
+          inc[k] = next;
+          paint();
+          window.parent.postMessage({ type: "includeTabs", value: Object.assign({}, inc) }, "*");
+        });
+        btn.style.paddingLeft = "0.35rem";
+        btn.style.paddingRight = "0.35rem";
+        btn.insertBefore(box, btn.firstChild);
+        paint();
       });
-      if (first) first.click();
     })();
 
     document.getElementById("btnToggleShell").addEventListener("click", () => {
@@ -2141,33 +2201,21 @@
     // =========================================================================
     // 빌더 UI 바인딩 및 동기화
     // =========================================================================
-    // 고객 리포트에 포함할 화면 선택 (체크 해제한 화면은 미리보기·다운로드 파일에서 빠짐)
-    const INCLUDE_KEYS = ["status", "contracts", "compare", "scenarios"];
-    function readIncludeTabs() {
-      const out = {};
-      document.querySelectorAll("[data-include]").forEach(cb => { out[cb.dataset.include] = cb.checked; });
-      return out;
-    }
-    function applyIncludeTabs(inc) {
-      const v = Object.assign({ status: true, contracts: true, compare: true, scenarios: true }, inc || {});
-      document.querySelectorAll("[data-include]").forEach(cb => { cb.checked = v[cb.dataset.include] !== false; });
-    }
-    document.querySelectorAll("[data-include]").forEach(cb => {
-      cb.addEventListener("change", () => {
-        if (!INCLUDE_KEYS.some(k => readIncludeTabs()[k])) {
-          cb.checked = true;
-          showToast("고객 리포트에는 최소 한 개 화면이 포함되어야 합니다.", true);
-          return;
-        }
-        currentData.includeTabs = readIncludeTabs();
+    // 고객 리포트에 포함할 화면 선택: 미리보기의 탭 이름 옆 체크박스가 바뀌면 알려 주므로 데이터에 저장합니다.
+    // (미리보기를 다시 그리지 않아 보고 있던 화면과 체크 상태가 그대로 유지됩니다)
+    window.addEventListener("message", (e) => {
+      const frame = document.getElementById("previewFrame");
+      if (!frame || e.source !== frame.contentWindow || !e.data) return;
+      if (e.data.type === "includeTabs") {
+        currentData.includeTabs = e.data.value;
         saveToHistory(currentData);
-        renderPreview();
-      });
+      } else if (e.data.type === "includeTabsBlocked") {
+        showToast("고객 리포트에는 최소 한 개 화면이 포함되어야 합니다.", true);
+      }
     });
 
     function syncDataToInputs() {
       document.getElementById("inpMode").value = currentData.mode || "adult";
-      document.getElementById("inpBrandShort").value = currentData.brandShort || "";
       document.getElementById("inpClientName").value = currentData.clientName || "";
       document.getElementById("inpInsuredName").value = currentData.insuredName || "";
       document.getElementById("inpProductName").value = currentData.productName || "";
@@ -2180,7 +2228,6 @@
       document.getElementById("inpAgentOrg").value = currentData.agentOrg || "";
       document.getElementById("inpAgentComment").value = currentData.agentComment || "";
 
-      applyIncludeTabs(currentData.includeTabs);
       const pf = currentData.profile || {};
       document.getElementById("inpJobType").value = pf.jobType || "";
       document.getElementById("inpIncome").value = pf.income ?? "";
@@ -2206,7 +2253,7 @@
 
     function syncInputsToData() {
       currentData.mode = document.getElementById("inpMode").value;
-      currentData.brandShort = document.getElementById("inpBrandShort").value;
+      currentData.brandShort = "IMC";
       currentData.clientName = document.getElementById("inpClientName").value;
       currentData.insuredName = document.getElementById("inpInsuredName").value;
       currentData.productName = document.getElementById("inpProductName").value;
@@ -2223,7 +2270,6 @@
       localStorage.setItem("SAVED_AGENT_PHONE", currentData.agentPhone);
       localStorage.setItem("SAVED_AGENT_ORG", currentData.agentOrg);
 
-      currentData.includeTabs = readIncludeTabs();
       currentData.profile = {
         jobType: document.getElementById("inpJobType").value,
         income: document.getElementById("inpIncome").value
@@ -2258,7 +2304,7 @@
 
     function renderPreview() {
       const iframe = document.getElementById("previewFrame");
-      iframe.srcdoc = generateClientHtml(currentData);
+      iframe.srcdoc = generateClientHtml(currentData, { editMode: true });
     }
 
     document.querySelectorAll(".builder-tab").forEach(btn => {
@@ -2954,7 +3000,6 @@ ${rawText || "없음"}
 반드시 아래 JSON 구조로만 응답하세요:
 {
   "mode": "child 또는 adult",
-  "brandShort": "보험사 약어 2~3글자",
   "productName": "메인 상품명 또는 리모델링 플랜명",
   "targetDate": "YYYY-MM-DD 형식의 상령일/출생예정일 (모르면 빈 문자열)",
   "targetLabel": "상령일 또는 출생예정일",
