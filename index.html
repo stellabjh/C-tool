@@ -16,6 +16,8 @@
       background-color: #0f172a;
       color: #f8fafc;
     }
+    /* 브랜드 로고는 어떤 테마에서도 같은 파란색 */
+    #builderLogo { background: #1C39BB !important; color: #fff !important; }
     .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scroll::-webkit-scrollbar-track { background: #1e293b; }
     .custom-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
@@ -26,7 +28,7 @@
   <!-- Top Header -->
   <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shrink-0">
     <div class="flex items-center gap-3">
-      <div class="min-w-[2.25rem] h-9 px-2 rounded-xl bg-teal-500 flex items-center justify-center text-slate-950 font-black text-sm tracking-tight shadow-lg shadow-teal-500/20">
+      <div id="builderLogo" class="min-w-[2.25rem] h-9 px-2 rounded-xl bg-teal-500 flex items-center justify-center text-slate-950 font-black text-sm tracking-tight shadow-lg">
         IMC
       </div>
       <div>
