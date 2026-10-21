@@ -856,6 +856,15 @@
     // generateClientHtml 안에 renderStatusViews.toString()으로 그대로 삽입되어
     // 고객 화면에서 실행됩니다. (parseNum 은 고객 화면 스크립트에 정의되어 있음)
     // =========================================================================
+    // 담보 이름의 군더더기를 지워 비교하기 쉽게 만듭니다. (무배당·특약·보장 같은 말, '(유사암 제외)' 같은 문구, 공백 제거)
+    function normName(s) {
+      return String(s || "")
+        .replace(/[()[\]{}]/g, " ")
+        .replace(/무배당|주계약|특약|보장|보험금|담보/g, "")
+        .replace(/(?:유사암|소액암|제자리암?|경계성종양?|갑상선암?|기타피부암?)\s*(?:등)?\s*제외/g, "")
+        .replace(/\s+/g, "");
+    }
+
     // 담보의 지급 유형. AI가 분류한 kind 가 있으면 그것을, 없으면(예전 데이터) 담보 이름으로 추정합니다.
     function riderKind(r) {
       if (r && r.kind) return String(r.kind);
@@ -880,7 +889,7 @@
       // 업계 일반 권장 기준(만원). 데이터 JSON의 recommended 로 덮어쓸 수 있음 (참고용 기준)
       const REC = Object.assign({ "일반암": 5000, "유사암": 1000, "뇌혈관": 3000, "허혈": 3000, "수술": 500, "입원": 5, "1인실": 10, "골절": 100 }, recommended || {});
       const cat = (r) => String(r.cat || "");
-      const name = (r) => String(r.name || "");
+      const name = (r) => normName(r.name);
       // 담보 이름에 글자만 들어 있다고 합치지 않고, 지급 유형(kind)까지 맞는 담보만 해당 항목에 더합니다.
       //  sum: 해당 담보 금액을 모두 더함 / contractMax: 계약마다 가장 큰 담보 하나만 (같은 사고에 중복 지급되지 않는 수술비)
       const CATS = [
@@ -975,96 +984,141 @@
       ];
     }
 
-    // 소득 정보가 있으면 3대 진단비(암·뇌혈관·허혈) 권장을 연소득 2배(병원비 1배 + 생활비 1배)로 맞춥니다.
-    // 직접 지정한 recommended 값이 있으면 그것이 우선합니다.
-    function effectiveRecommended(profile, recommended) {
-      const friends = computeFiveFriends(profile);
-      const base = {};
-      if (friends.length) {
-        const need = friends[0].value * 2;
-        base["일반암"] = need; base["뇌혈관"] = need; base["허혈"] = need;
-      }
-      return Object.assign(base, recommended || {});
-    }
-
     // =========================================================================
-    // 다섯 친구 신호등: 소득 기준 필요 금액 대비 현재 준비 금액을 판정합니다. (만원)
-    //  판정: 필요의 100% 이상 충분 / 50% 이상 주의 / 그 미만 부족 / 0이면 미가입 / 필요 금액이 없으면 미정보
-    //  병원비·생활비 ← 암·뇌혈관·허혈 진단비 중 가장 낮은 금액을 병원비부터 채우고 남는 금액을 생활비로
-    //  부양비 ← 사망 담보 합계(재해·상해 사망은 일반 사망이 없을 때만 최대값 사용)
-    //  법률배상 ← 배상책임·변호사선임·교통사고처리지원금 담보 가입 여부
-    //  유동자산 ← 보험 서류로는 확인할 수 없어 미정보
+    // 다섯 친구별 담보 현황 (참고 사이트의 '담보별 진단현황' 표와 같은 구성). 금액 단위: 만원
+    //  병원비 / 생활비 / 부양비 / 법률비용 및 기타 네 그룹에 담보를 나누고, 담보마다 권장 금액 대비 현재 가입금액을 판정합니다.
+    //  권장 금액은 연소득 5,000만원 기준 값이며, 소득에 비례하는 항목(scale)은 연소득에 맞춰 환산합니다.
+    //  담보 상태: 권장 대비 100% 이상 충분 / 50~99% 주의 / 50% 미만 부족 / 0이면 미가입 (권장이 없는 담보는 가입 여부만)
+    //  유동자산은 보험 서류로 확인할 수 없어 미정보.
     // generateClientHtml 안에 toString()으로 삽입되므로 외부 변수에 기대지 않습니다.
     // =========================================================================
-    function computeFriendSignals(profile, rows, existingList, proposedList, num) {
+    function computeFriendSignals(profile, existingList, proposedList, num) {
       const friends = computeFiveFriends(profile);
       if (friends.length === 0) return [];
-      const judge = (cur, need) => {
-        if (!need || need <= 0) return cur > 0 ? { color: "green", text: "충분" } : { color: "gray", text: "미정보" };
-        if (cur <= 0) return { color: "red", text: "미가입" };
-        const p = cur / need;
+      const k = friends[0].value / 5000;
+      const nm = (r) => normName(r.name);
+      const ct = (r) => String(r.cat || "");
+      const kindIn = (r, kind) => riderKind(r) === kind;
+      const GENERAL_CANCER = (r) => kindIn(r, "진단비") && (ct(r).includes("일반암") || (!ct(r).includes("유사암") && /암/.test(nm(r)) && !/유사암|소액암|갑상선|제자리|경계성|표적|항암치료/.test(nm(r))));
+      const GROUPS = {
+        hospital: [
+          { label: "실손의료비", rec: null, test: (r) => /실손|의료비/.test(nm(r)) && !/3대|비급여|도수|체외|증식|주사|mri|자기공명/i.test(nm(r)) },
+          { label: "3대비급여실손", rec: null, test: (r) => /3대비급여|도수|체외충격파|증식치료|비급여.*주사|주사료|mri|자기공명/i.test(nm(r)) },
+          { label: "상해수술비", rec: 100, mode: "max", test: (r) => kindIn(r, "수술비") && /상해|재해/.test(nm(r)) },
+          { label: "질병수술비", rec: 100, mode: "max", test: (r) => kindIn(r, "수술비") && !/상해|재해|암|뇌|허혈|심장|심근|골절|화상|치매|백내장|임플란트/.test(nm(r)) },
+          { label: "암수술비", rec: 300, test: (r) => kindIn(r, "수술비") && /암/.test(nm(r)) },
+          { label: "뇌혈관질환수술비", rec: 2500, scale: true, test: (r) => kindIn(r, "수술비") && /뇌/.test(nm(r)) },
+          { label: "허혈성심장질환수술비", rec: 2500, scale: true, test: (r) => kindIn(r, "수술비") && /허혈|심장|심근/.test(nm(r)) },
+          { label: "상해입원일당", rec: 3, test: (r) => kindIn(r, "입원일당") && /상해|재해/.test(nm(r)) && !/간병|간호|의료비|실손/.test(nm(r)) },
+          { label: "질병입원일당", rec: 3, test: (r) => kindIn(r, "입원일당") && !/상해|재해|교통|암|치매|간병|간호|1인실|중환자|상급|의료비|실손/.test(nm(r)) },
+          { label: "치아보험", rec: null, test: (r) => /치아|임플란트|보철|크라운|틀니/.test(nm(r)) }
+        ],
+        living: [
+          { label: "일반암 진단비", rec: 5000, scale: true, test: GENERAL_CANCER },
+          { label: "유사암 진단비", rec: 1000, scale: true, test: (r) => kindIn(r, "진단비") && (ct(r).includes("유사암") || (!ct(r).includes("일반암") && /유사암|소액암|갑상선|제자리|경계성/.test(nm(r)))) },
+          { label: "고액(표적)항암치료비", rec: null, test: (r) => /표적|고액.*항암|면역항암|항암.*(약물|치료)|항암방사선/.test(nm(r)) },
+          { label: "뇌혈관질환 진단비", rec: 2500, scale: true, test: (r) => kindIn(r, "진단비") && (/뇌혈관/.test(nm(r)) || (ct(r).includes("뇌혈관") && !/뇌졸중|뇌출혈|뇌경색/.test(nm(r)))) },
+          { label: "뇌졸중 진단비", rec: 2500, scale: true, test: (r) => kindIn(r, "진단비") && /뇌졸중|뇌경색/.test(nm(r)) },
+          { label: "뇌출혈 진단비", rec: 2500, scale: true, test: (r) => kindIn(r, "진단비") && /뇌출혈/.test(nm(r)) },
+          { label: "허혈성심장질환 진단비", rec: 2500, scale: true, test: (r) => kindIn(r, "진단비") && (/허혈|심장질환/.test(nm(r)) || (ct(r).includes("허혈") && !/심근경색/.test(nm(r)))) },
+          { label: "급성심근경색 진단비", rec: 2500, scale: true, test: (r) => kindIn(r, "진단비") && /심근경색/.test(nm(r)) }
+        ],
+        support: [
+          { label: "상해사망", rec: 15000, scale: true, test: (r) => kindIn(r, "사망") && /상해|재해|교통/.test(nm(r)) },
+          { label: "질병사망", rec: 15000, scale: true, test: (r) => kindIn(r, "사망") && !/상해|재해|교통/.test(nm(r)) },
+          { label: "상해80%미만후유장해", rec: 5000, scale: true, test: (r) => kindIn(r, "후유장해") && /상해|재해/.test(nm(r)) },
+          { label: "질병80%미만후유장해", rec: 5000, scale: true, test: (r) => kindIn(r, "후유장해") && !/상해|재해|교통/.test(nm(r)) },
+          { label: "장기요양간병비", rec: 3000, scale: true, test: (r) => /장기요양|요양간병/.test(nm(r)) },
+          { label: "경증치매진단", rec: 10000, scale: true, test: (r) => /치매/.test(nm(r)) && /진단|경증/.test(nm(r)) },
+          { label: "간병인/간호간병상해일당", rec: 20, test: (r) => /간병|간호/.test(nm(r)) && /일당|일액/.test(nm(r)) && /상해|재해/.test(nm(r)) },
+          { label: "간병인/간호간병질병일당", rec: 20, test: (r) => /간병|간호/.test(nm(r)) && /일당|일액/.test(nm(r)) && !/상해|재해/.test(nm(r)) }
+        ],
+        legal: [
+          { label: "교통사고 벌금(대인/대물/스쿨존)", rec: 3500, test: (r) => /벌금/.test(nm(r)) && !/화재/.test(nm(r)) },
+          { label: "교통사고 처리지원금", rec: 20000, test: (r) => /처리지원금/.test(nm(r)) },
+          { label: "교통사고처리 변호사선임비", rec: 5000, test: (r) => /변호사/.test(nm(r)) },
+          { label: "일상생활배상책임 가족(자녀)포함", rec: null, test: (r) => (/일상|가족|자녀.*배상|배상책임/.test(nm(r))) && !/교통|화재/.test(nm(r)) },
+          { label: "화재벌금", rec: 2000, test: (r) => /화재.*벌금|화재벌금/.test(nm(r)) }
+        ]
+      };
+      const BASIS = {
+        hospital: "실손·수술비·입원일당 등 병원비 담보 기준",
+        living: "암·뇌혈관·심장 진단비 등 생활비 담보 기준",
+        support: "사망·후유장해·간병 담보 기준",
+        legal: "벌금 · 교통사고처리지원금 · 변호사선임비용 · 일상생활배상 중 2개 이상 가입하면 준비",
+        asset: "보험 서류로는 확인할 수 없는 항목입니다 (예금·적금 등은 별도 확인)"
+      };
+      const amountOf = (r) => num(r.amountManwon !== undefined ? r.amountManwon : r.amount);
+      // 서류를 읽을 때 AI가 표준 담보명(std)을 골랐다면 그 줄에만 반영하고, 없으면 이름 규칙으로 맞춥니다.
+      const matches = (it, r) => (r.std ? r.std === it.label : it.test(r));
+      const sumFor = (list, it) => {
+        let total = 0;
+        list.forEach((con) => {
+          if (!con.checked) return;
+          const vals = (con.riders || []).filter((r) => r.checked && matches(it, r)).map(amountOf).filter((v) => v > 0);
+          if (vals.length === 0) return;
+          total += it.mode === "max" ? Math.max.apply(null, vals) : vals.reduce((a, b) => a + b, 0);
+        });
+        return total;
+      };
+      const judgeItem = (cur, rec) => {
+        if (rec === null) return cur > 0 ? { color: "green", text: "가입" } : { color: "gray", text: "미가입" };
+        if (cur <= 0) return { color: "gray", text: "미가입" };
+        const p = cur / rec;
         if (p >= 1) return { color: "green", text: "충분" };
         if (p >= 0.5) return { color: "yellow", text: "주의" };
         return { color: "red", text: "부족" };
       };
-      const amountOf = (r) => num(r.amountManwon !== undefined ? r.amountManwon : r.amount);
-      const ridersOf = (test) => {
-        const out = [];
-        [existingList, proposedList].forEach((list) => list.forEach((c) => {
-          if (!c.checked) return;
-          (c.riders || []).forEach((r) => { if (r.checked && test(String(r.cat) + " " + String(r.name))) out.push(r); });
-        }));
-        return out;
-      };
-      const total = (key) => { const row = rows.find((x) => x.cat.key === key); return row ? row.total : 0; };
-      const bigKeys = ["일반암", "뇌혈관", "허혈"];
-      const bigNames = { "일반암": "암", "뇌혈관": "뇌혈관", "허혈": "허혈성 심장질환" };
-      const floor = Math.min.apply(null, bigKeys.map(total));
-      const missing = bigKeys.filter((k) => total(k) <= 0).map((k) => bigNames[k]);
-      const partial = floor <= 0 && missing.length < bigKeys.length; // 일부 진단비만 있는 경우는 '미가입' 대신 '부족'
-      const needHospital = friends[0].value, needLiving = friends[1].value;
-      const death = ridersOf((s) => s.includes("사망"));
-      const general = death.filter((r) => !/재해|상해|교통/.test(String(r.cat) + " " + String(r.name)));
-      const deathAmt = general.length ? general.reduce((s, r) => s + amountOf(r), 0) : death.reduce((m, r) => Math.max(m, amountOf(r)), 0);
-      const legalCount = ridersOf((s) => /배상|변호사|교통사고처리/.test(s)).length;
 
-      return friends.map((f) => {
-        let current = null, status, basis;
-        if (f.key === "hospital") {
-          current = Math.min(floor, needHospital);
-          status = partial ? { color: "red", text: "부족" } : judge(current, needHospital);
-          basis = "암·뇌혈관·허혈성 심장질환 진단비 중 가장 낮은 금액 기준" + (missing.length ? " (" + missing.join("·") + " 진단비 없음)" : "");
-        } else if (f.key === "living") {
-          current = Math.min(Math.max(floor - needHospital, 0), needLiving);
-          status = partial ? { color: "red", text: "부족" } : judge(current, needLiving);
-          basis = "위 진단비에서 병원비를 채우고 남는 금액 기준";
-        } else if (f.key === "support") {
-          current = deathAmt;
-          status = judge(current, f.value);
-          basis = death.length ? "사망 담보 합계 기준" : "서류에서 사망 담보를 찾지 못했습니다";
-        } else if (f.key === "legal") {
-          current = legalCount;
-          status = legalCount > 0 ? { color: "green", text: "가입" } : { color: "red", text: "미가입" };
-          basis = "배상책임·변호사선임 담보 가입 여부 기준";
-        } else {
-          status = { color: "gray", text: "미정보" };
-          basis = "보험 서류로는 확인할 수 없는 항목입니다 (예금·적금 등은 별도 확인)";
-        }
-        const pct = f.value > 0 && f.key !== "legal" && current !== null ? Math.round((current / f.value) * 100) : null;
-        return Object.assign({}, f, { current, status, pct, basis });
+      const allDefs = Object.keys(GROUPS).reduce((a, key) => a.concat(GROUPS[key]), []);
+      const unmatched = [];
+      [existingList, proposedList].forEach((list, idx) => list.forEach((con) => {
+        if (!con.checked) return;
+        (con.riders || []).forEach((r) => {
+          if (r.checked && amountOf(r) > 0 && !allDefs.some((it) => matches(it, r))) unmatched.push({ name: String(r.name || ""), company: con.company || "", amount: amountOf(r), proposed: idx === 1 });
+        });
+      }));
+
+      const out = friends.map((f) => {
+        const defs = GROUPS[f.key] || [];
+        const items = defs.map((it) => {
+          const current = sumFor(existingList, it) + sumFor(proposedList, it);
+          const rec = it.rec === null ? null : Math.round(it.rec * (it.scale ? k : 1));
+          const status = judgeItem(current, rec);
+          return { label: it.label, rec, current, status, shortfall: rec ? Math.max(rec - current, 0) : 0, pct: rec ? Math.round((current / rec) * 100) : null };
+        });
+        const rated = items.filter((x) => x.rec !== null);
+        const avg = rated.length ? rated.reduce((s, x) => s + Math.min(1, x.current / x.rec), 0) / rated.length : null;
+        const any = items.some((x) => x.current > 0);
+        let status;
+        if (f.key === "asset") status = { color: "gray", text: "미정보" };
+        else if (f.key === "legal") {
+          const four = items.slice(0, 4).filter((x) => x.current > 0).length; // 벌금·처리지원금·변호사선임·일상배상 중 2개 이상이면 준비
+          status = four >= 2 ? { color: "green", text: "준비" } : { color: "red", text: "미비" };
+        } else if (!any) status = { color: "red", text: "미가입" };
+        else if (avg === null || avg >= 0.999) status = { color: "green", text: "충분" };
+        else if (avg >= 0.5) status = { color: "yellow", text: "주의" };
+        else status = { color: "red", text: "부족" };
+        const met = items.filter((x) => x.status.text === "충분" || x.status.text === "가입").length;
+        return Object.assign({}, f, { items, status, met, total: items.length, pct: avg === null ? null : Math.round(avg * 100), basis: BASIS[f.key] });
       });
+      out.unmatched = unmatched;   // 표에 해당하는 줄이 없는 담보 (사라지지 않게 따로 보여줌)
+      out.standardNames = allDefs.map((it) => it.label);
+      return out;
     }
 
     // 빌더 전용: 상담 대사 생성에 쓸 "계산된 보장 현황" 문장 (모든 담보를 선택한 상태 기준)
     function coverageFactsText(existing, proposed, recommended, profile) {
       const all = (list) => (list || []).map((c) => ({ ...c, checked: true, riders: (c.riders || []).map((r) => ({ ...r, checked: true })) }));
       const f = (v) => (v > 0 ? Math.round(v).toLocaleString() + "만원" : "없음");
-      const rec = effectiveRecommended(profile, recommended);
-      const rowsAll = computeCoverage(all(existing), all(proposed), rec, toManwon);
+      const rowsAll = computeCoverage(all(existing), all(proposed), recommended, toManwon);
       const lines = rowsAll.map((r) => `${r.cat.label}: 기존 ${f(r.ex)} + 신규 ${f(r.pr)} = 합산 ${f(r.total)} / 권장 ${f(r.rec)} → ${r.j.text}`);
-      const signals = computeFriendSignals(profile, rowsAll, all(existing), all(proposed), toManwon)
-        .map((s) => `${s.order} ${s.label}: 필요 ${s.value === null ? "시장가격" : f(s.value)} / 현재 ${s.current === null ? "확인 불가" : (s.key === "legal" ? s.current + "건" : f(s.current))} → ${s.status.text}`);
-      return lines.concat(signals.length ? ["[다섯 친구 신호등 · 소득 기준 필요 보장 대비 현재 준비]"].concat(signals) : []).join("\n");
+      const signals = computeFriendSignals(profile, all(existing), all(proposed), toManwon)
+        .map((s) => {
+          const weak = s.items.filter((x) => x.rec !== null && x.status.text !== "충분").slice(0, 3).map((x) => `${x.label}(${x.status.text})`);
+          return `${s.order} ${s.label}: ${s.status.text}${s.total ? ` (충족 ${s.met}/${s.total}개${weak.length ? ", 보완 필요: " + weak.join(", ") : ""})` : ""}`;
+        });
+      return lines.concat(signals.length ? ["[다섯 친구 신호등 · 담보별 권장 금액 대비 현재 준비]"].concat(signals) : []).join("\n");
     }
 
     // =========================================================================
@@ -1129,8 +1183,8 @@
         red: { dot: "bg-rose-500", chip: "bg-rose-50 text-rose-700 border-rose-200", bar: "bg-rose-500", emoji: "🔴" },
         gray: { dot: "bg-slate-400", chip: "bg-slate-50 text-slate-600 border-slate-200", bar: "bg-slate-300", emoji: "⚪" }
       };
-      const rows = computeCoverage(existingList, proposedList, effectiveRecommended(DATA.profile, DATA.recommended), parseNum);
-      const signals = computeFriendSignals(DATA.profile, rows, existingList, proposedList, parseNum);
+      const rows = computeCoverage(existingList, proposedList, DATA.recommended, parseNum);
+      const signals = computeFriendSignals(DATA.profile, existingList, proposedList, parseNum);
       const count = { green: 0, yellow: 0, red: 0 };
       rows.forEach((r) => count[r.j.color]++);
 
@@ -1210,7 +1264,7 @@
           <div>
             <span class="px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-[11px] font-extrabold">🚦 보장분석신호등</span>
             <h3 class="text-sm font-extrabold text-slate-900 mt-1">다섯 친구 기준 필요 보장 vs 현재 준비</h3>
-            <p class="text-[11px] text-slate-500 mt-0.5">연소득 ${fmt(signals[0].own)}${signals[0].spouse > 0 ? " · 배우자 " + fmt(signals[0].spouse) : ""}${signals[0].kids > 0 ? " · 자녀 " + signals[0].kids + "명" : ""} 기준 · 카드는 현재 준비 / 필요 금액 · 🟢 충분(100%↑) 🟡 주의(50%↑) 🔴 부족·미가입 ⚪ 확인 불가 (참고용)</p>
+            <p class="text-[11px] text-slate-500 mt-0.5">연소득 ${fmt(signals[0].own)}${signals[0].spouse > 0 ? " · 배우자 " + fmt(signals[0].spouse) : ""}${signals[0].kids > 0 ? " · 자녀 " + signals[0].kids + "명" : ""} 기준 · 기존 + 신규 합산 · 카드는 충족한 담보 수와 평균 준비율 · 🟢 충분 🟡 주의(50%↑) 🔴 부족·미가입 ⚪ 확인 불가 (참고용)</p>
           </div>
           <div class="grid grid-cols-4 gap-1.5 text-center">
             <div class="rounded-xl bg-emerald-50 border border-emerald-200 py-1.5"><p class="text-base font-black text-emerald-700">${fcount.green}</p><p class="text-[10px] font-bold text-emerald-700">충분</p></div>
@@ -1226,7 +1280,7 @@
                   <span class="px-1.5 rounded text-[9px] font-extrabold border ${LIGHT[s.status.color].chip}">${s.status.text}</span>
                 </div>
                 <p class="text-[11px] font-extrabold flex items-center gap-1 leading-tight mt-0.5"><span class="w-2 h-2 rounded-full shrink-0 ${LIGHT[s.status.color].dot}"></span>${esc(s.label)}</p>
-                <p class="text-[10px] leading-tight mt-0.5"><span class="font-black text-slate-800">${s.current === null ? "-" : (s.key === "legal" ? (s.current > 0 ? s.current + "건 가입" : "미가입") : (s.key === "hospital" || s.key === "living") && s.current <= 0 ? "0원" : fmt(s.current))}</span><span class="opacity-60"> / ${s.value === null ? "시장가격" : fmt(s.value)}</span></p>
+                <p class="text-[10px] leading-tight mt-0.5"><span class="font-black text-slate-800">${s.total ? "충족 " + s.met + "/" + s.total : "-"}</span><span class="opacity-60"> · 필요 ${s.value === null ? "시장가격" : fmt(s.value)}</span></p>
                 ${s.pct === null ? "" : `<div class="w-full bg-white/70 rounded-full h-1 overflow-hidden mt-1"><div class="${LIGHT[s.status.color].bar} h-1 rounded-full" style="width:${Math.min(100, s.pct)}%"></div></div>`}
               </div>`).join("")}
           </div>
@@ -1266,31 +1320,97 @@
         </div>`;
 
       // ---- 3. 담보별 진단현황 ----
-      const diagHtml = `
+      // 담보 8항목 줄 (기존 계약 기준) — 소득 정보가 없을 때 기본으로, 있을 때는 '세부 담보 보기'에 넣습니다.
+      const flatRowHtml = (r) => `
+        <div class="px-2.5 py-2 rounded-lg bg-slate-50 border border-slate-200/80">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[11px] font-extrabold text-slate-800 flex items-center gap-1.5 min-w-0"><span class="w-2 h-2 rounded-full shrink-0 ${LIGHT[r.jEx.color].dot}"></span><span class="truncate">${esc(r.cat.label)}</span></span>
+            <span class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[11px] font-black text-slate-900">${fmt(r.ex)}</span>
+              <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${LIGHT[r.jEx.color].chip}">${r.jEx.text}</span>
+            </span>
+          </div>
+          <div class="mt-1 flex items-center gap-2">
+            <div class="flex-1 bg-slate-200 rounded-full h-1 overflow-hidden"><div class="${LIGHT[r.jEx.color].bar} h-1 rounded-full" style="width:${Math.min(100, r.pctEx)}%"></div></div>
+            <span class="text-[9px] text-slate-400 shrink-0">권장 ${fmt(r.rec)} · ${r.pctEx}%</span>
+          </div>
+        </div>`;
+      const flatRowsHtml = rows.map(flatRowHtml).join("");
+
+      // 기존 계약만 기준으로 한 다섯 친구 진단 (신호등은 기존 + 신규 합산, 이쪽은 기존 계약만)
+      const signalsEx = computeFriendSignals(DATA.profile, existingList, [], parseNum);
+      const noExisting = existingList.length === 0 ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-400 text-center">등록된 기존 계약이 없어 모두 미가입으로 표시됩니다.</div>` : "";
+      // 담보 한 줄: 담보명 · 현재 금액 · 상태 / 권장 금액 대비 막대 · 부족 금액
+      const itemRowHtml = (it) => `
+        <div class="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200/80">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[11px] font-bold text-slate-800 flex items-center gap-1.5 min-w-0"><span class="w-2 h-2 rounded-full shrink-0 ${LIGHT[it.status.color].dot}"></span><span class="truncate">${esc(it.label)}</span></span>
+            <span class="flex items-center gap-1.5 shrink-0">
+              <span class="text-[11px] font-black ${it.current > 0 ? "text-slate-900" : "text-slate-400"}">${it.current > 0 ? fmt(it.current) : "미가입"}</span>
+              <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${LIGHT[it.status.color].chip}">${it.status.text}</span>
+            </span>
+          </div>
+          ${it.rec === null ? "" : `
+          <div class="mt-1 flex items-center gap-2">
+            <div class="flex-1 bg-slate-200 rounded-full h-1 overflow-hidden"><div class="${LIGHT[it.status.color].bar} h-1 rounded-full" style="width:${Math.min(100, it.pct)}%"></div></div>
+            <span class="text-[9px] text-slate-400 shrink-0">권장 ${fmt(it.rec)}${it.shortfall > 0 ? ` · <span class="text-rose-500 font-bold">부족 ${fmt(it.shortfall)}</span>` : ""}</span>
+          </div>`}
+        </div>`;
+      const otherRidersHtml = (signalsEx.unmatched || []).filter((x) => !x.proposed).length === 0 ? "" : `
+              <details class="rounded-xl border border-slate-200">
+                <summary class="cursor-pointer px-2.5 py-2 flex items-center justify-between gap-2">
+                  <span class="text-xs font-extrabold text-slate-700">그 밖의 담보 <span class="text-[9px] font-bold text-slate-400">표에 없는 담보</span></span>
+                  <span class="text-[10px] text-slate-400">${signalsEx.unmatched.filter((x) => !x.proposed).length}개 ▾</span>
+                </summary>
+                <div class="px-2 pb-2 space-y-1">
+                  ${signalsEx.unmatched.filter((x) => !x.proposed).map((x) => `
+                    <div class="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80 flex items-center justify-between gap-2">
+                      <span class="min-w-0 truncate text-[11px]"><span class="font-bold text-slate-800">${esc(x.name)}</span> <span class="text-[9px] text-slate-400">${esc(x.company)}</span></span>
+                      <span class="text-[11px] font-black text-slate-900 shrink-0">${fmt(x.amount)}</span>
+                    </div>`).join("")}
+                </div>
+              </details>`;
+      const friendDiagHtml = signalsEx.length === 0 ? "" : `
+        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
+          <div>
+            <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-200">담보별 진단현황</span>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">기존 계약 기준 다섯 친구</h3>
+            <p class="text-[10px] text-slate-500 mt-0.5">연소득 ${fmt(signalsEx[0].own)} 기준 · 담보마다 권장 금액 대비 현재 가입금액 (50% 미만 부족, 50~99% 주의, 100% 이상 충분, 0은 미가입)</p>
+          </div>
+          ${noExisting}
+          <div class="space-y-2">
+            ${signalsEx.map((s) => `
+              <details open class="rounded-xl border border-slate-200">
+                <summary class="cursor-pointer px-2.5 py-2 space-y-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 min-w-0"><span class="w-2.5 h-2.5 rounded-full shrink-0 ${LIGHT[s.status.color].dot}"></span><span class="truncate"><span class="text-[9px] font-bold text-slate-400">${esc(s.order)}</span> ${esc(s.label)}</span></span>
+                    <span class="flex items-center gap-1.5 shrink-0">
+                      <span class="text-[10px] text-slate-500">${s.total ? "충족 " + s.met + "/" + s.total : ""}</span>
+                      <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${LIGHT[s.status.color].chip}">${s.status.text}</span>
+                      <span class="text-[10px] text-slate-400">▾</span>
+                    </span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    ${s.pct === null ? `<span class="flex-1"></span>` : `<div class="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden"><div class="${LIGHT[s.status.color].bar} h-1.5 rounded-full" style="width:${Math.min(100, s.pct)}%"></div></div>`}
+                    <span class="text-[9px] text-slate-400 shrink-0">필요 ${s.value === null ? "시장가격" : fmt(s.value)}${s.pct === null ? "" : " · 평균 " + s.pct + "%"}</span>
+                  </div>
+                  <p class="text-[9px] text-slate-400 leading-snug">${esc(s.basis)}</p>
+                </summary>
+                ${s.items.length ? `<div class="px-2 pb-2 space-y-1">${s.items.map(itemRowHtml).join("")}</div>` : ""}
+              </details>`).join("")}
+            ${otherRidersHtml}
+          </div>
+        </div>`;
+      const flatDiagHtml = `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
           <div>
             <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-200">담보별 진단현황</span>
             <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">기존 계약 기준 주요 담보</h3>
-            ${signals.length ? `<p class="text-[10px] text-slate-500 mt-0.5">암·뇌혈관·허혈 권장 = 연소득 2배 (병원비 1배 + 생활비 1배)</p>` : ""}
           </div>
-          ${existingList.length === 0 ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-400 text-center">등록된 기존 계약이 없어 모두 미가입으로 표시됩니다.</div>` : ""}
-          <div class="space-y-1.5">
-            ${rows.map((r) => `
-              <div class="px-2.5 py-2 rounded-lg bg-slate-50 border border-slate-200/80">
-                <div class="flex items-center justify-between gap-2">
-                  <span class="text-[11px] font-extrabold text-slate-800 flex items-center gap-1.5 min-w-0"><span class="w-2 h-2 rounded-full shrink-0 ${LIGHT[r.jEx.color].dot}"></span><span class="truncate">${esc(r.cat.label)}</span></span>
-                  <span class="flex items-center gap-1.5 shrink-0">
-                    <span class="text-[11px] font-black text-slate-900">${fmt(r.ex)}</span>
-                    <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${LIGHT[r.jEx.color].chip}">${r.jEx.text}</span>
-                  </span>
-                </div>
-                <div class="mt-1 flex items-center gap-2">
-                  <div class="flex-1 bg-slate-200 rounded-full h-1 overflow-hidden"><div class="${LIGHT[r.jEx.color].bar} h-1 rounded-full" style="width:${Math.min(100, r.pctEx)}%"></div></div>
-                  <span class="text-[9px] text-slate-400 shrink-0">권장 ${fmt(r.rec)} · ${r.pctEx}%</span>
-                </div>
-              </div>`).join("")}
-          </div>
+          ${noExisting}
+          <div class="space-y-1.5">${flatRowsHtml}</div>
         </div>`;
+      const diagHtml = signalsEx.length ? friendDiagHtml : flatDiagHtml;
 
       // ---- 4. 상품별 가입담보 상세 ----
       const detailCard = (c, isNew) => `
@@ -1865,11 +1985,11 @@
       renderStatusViews(DATA, existingList, proposedList);
       if (window.__scenariosReady) renderScenarios();
     }
+    ${normName.toString()}
     ${riderKind.toString()}
     ${computeCoverage.toString()}
     ${compareRowsHtml.toString()}
     ${computeFiveFriends.toString()}
-    ${effectiveRecommended.toString()}
     ${computeFriendSignals.toString()}
     ${resolveScenario.toString()}
     ${renderStatusViews.toString()}
@@ -2557,6 +2677,7 @@ ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
         {
           "cat": "일반암 | 유사암 | 뇌혈관 | 허혈 | 수술 | 입원 | 1인실 | 골절 | 사망 | 배상책임 | 기타 중 택1",
           "kind": "진단비 | 수술비 | 입원일당 | 치료비 | 사망 | 후유장해 | 배상책임 | 기타 중 택1 (보험금 지급 유형)",
+          "std": "아래 [표준 담보명] 중 이 담보와 가장 같은 것 하나 (이름이 조금 달라도 같은 보장이면 선택, 해당하는 것이 없으면 빈 문자열)",
           "name": "담보(특약)명",
           "amount": "가입금액 표시 (예: 3,000만원)",
           "amountManwon": 만원 단위 숫자 (예: 3000),
@@ -2569,6 +2690,12 @@ ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
   ],
   "notes": "읽기 어려웠거나 확인이 필요한 부분 (없으면 빈 문자열)"
 }`;
+
+    // 담보별 진단현황 표의 담보명 (computeFriendSignals 의 GROUPS 라벨과 같아야 합니다)
+    const STD_RIDER_NAMES = ["실손의료비", "3대비급여실손", "상해수술비", "질병수술비", "암수술비", "뇌혈관질환수술비", "허혈성심장질환수술비", "상해입원일당", "질병입원일당", "치아보험",
+      "일반암 진단비", "유사암 진단비", "고액(표적)항암치료비", "뇌혈관질환 진단비", "뇌졸중 진단비", "뇌출혈 진단비", "허혈성심장질환 진단비", "급성심근경색 진단비",
+      "상해사망", "질병사망", "상해80%미만후유장해", "질병80%미만후유장해", "장기요양간병비", "경증치매진단", "간병인/간호간병상해일당", "간병인/간호간병질병일당",
+      "교통사고 벌금(대인/대물/스쿨존)", "교통사고 처리지원금", "교통사고처리 변호사선임비", "일상생활배상책임 가족(자녀)포함", "화재벌금"];
 
     async function parseOneFile(item, apiKey, rawText) {
       const t0 = performance.now();
@@ -2588,6 +2715,9 @@ ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
 - docType: 이미 가입한 계약의 증권/현황이면 existing, 새로 제안하는 설계서면 proposed, 판단이 어려우면 unknown.
 - cat 또는 name에 '일반암','유사암','뇌혈관','허혈','수술','입원','1인실','골절' 키워드가 해당될 때 반드시 포함하고, amountManwon은 만원 단위 숫자로 쓰세요.
 - 담보마다 kind(지급 유형)를 정확히 분류하세요. 예: '일반암진단비'는 cat 일반암·kind 진단비, '암수술비'는 kind 수술비, '질병입원일당'은 kind 입원일당, '항암방사선치료비'는 kind 치료비. 이름에 '암'이 들어 있어도 수술비·입원일당·치료비를 진단비로 분류하지 마세요.
+- [표준 담보명] 목록은 아래와 같습니다. 담보마다 std에 가장 가까운 표준 담보명을 정확히 그대로 적으세요. 예) '무배당 암진단특약(유사암 제외)'은 '일반암 진단비', '상해후유장해(3~100%)'는 '상해80%미만후유장해'. 같은 보장이 아닌데 억지로 고르지 말고 빈 문자열로 두세요.
+[표준 담보명] ${STD_RIDER_NAMES.join(' / ')}
+- 담보명(name)은 서류에 적힌 이름 그대로 적으세요('상해80%미만후유장해', '교통사고처리지원금', '일상생활배상책임(가족/자녀포함)' 등을 줄이거나 바꾸지 마세요).
 - amount는 서류에 적힌 가입금액 글자를 그대로 적고(보험료와 혼동 금지), amountManwon은 그 글자를 만원 단위 숫자로 환산하세요.
 - 사망보험금·사망 담보는 cat을 '사망', 일상생활배상책임·변호사선임비용·교통사고처리지원금은 cat을 '배상책임'으로 하세요.
 ${hint}
@@ -2634,6 +2764,7 @@ ${FILE_PARSE_SCHEMA}` });
         return {
           cat: r.cat || "기타", name: r.name || "", amount: r.amount || (manwon ? manwon.toLocaleString() + "만원" : ""),
           kind: kinds.includes(r.kind) ? r.kind : riderKind(r), amountCheck: check,
+          std: STD_RIDER_NAMES.includes(r.std) ? r.std : "",
           id: `${prefix}_${idx}_r_${i}`, amountManwon: manwon, riderPrem: r.riderPrem || "",
           reductionPeriod: r.reductionPeriod || "", reductionAmount: r.reductionAmount || "",
           checked: true
