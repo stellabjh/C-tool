@@ -73,7 +73,7 @@
     <div class="w-[530px] xl:w-[600px] bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
       
       <!-- Step Tabs -->
-      <div class="grid grid-cols-4 border-b border-slate-800 bg-slate-950/50 p-1.5 gap-1 shrink-0">
+      <div class="grid grid-cols-5 border-b border-slate-800 bg-slate-950/50 p-1.5 gap-1 shrink-0">
         <button data-tab="tab-ai" class="builder-tab py-2 rounded-lg text-xs font-bold bg-teal-500 text-slate-950 transition">
           1. 서류 AI 분석
         </button>
@@ -85,6 +85,9 @@
         </button>
         <button data-tab="tab-data" class="builder-tab py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition">
           4. 세부 편집
+        </button>
+        <button data-tab="tab-theme" class="builder-tab py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition">
+          5. 🎨 테마
         </button>
       </div>
 
@@ -223,14 +226,18 @@
           </div>
         </div>
 
-        <!-- TAB 3: Basic Info Editor -->
-        <div id="tab-basic" class="tab-pane hidden space-y-4">
+        <!-- TAB 5: Theme -->
+        <div id="tab-theme" class="tab-pane hidden space-y-4">
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
-            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">🎨 리포트 테마 <span class="font-medium text-slate-400">(고객 화면 색상 · 하나만 선택)</span></h3>
+            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">🎨 리포트 테마 <span class="font-medium text-slate-400">(하나만 선택)</span></h3>
             <input type="hidden" id="inpTheme" value="default" />
+            <p class="text-[11px] text-slate-400 leading-relaxed">고객에게 보내는 리포트와 이 편집 화면의 색상이 함께 바뀝니다. 선택은 고객별 기록에 저장됩니다.</p>
             <div id="themePicker" class="grid grid-cols-2 gap-2"></div>
           </div>
+        </div>
 
+        <!-- TAB 3: Basic Info Editor -->
+        <div id="tab-basic" class="tab-pane hidden space-y-4">
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
             <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">👤 고객 및 계약 기본 정보</h3>
             <div class="grid grid-cols-2 gap-2.5">
@@ -1705,17 +1712,20 @@
       tealblue: {
         name: "밝은 틸 + 블루", desc: "상단이 밝은 민트, 블루 버튼", sw: ["E9F7F6", "BFE6E0", "6EC9C3", "1C39BB", "1F3E46"],
         pal: { 50: "E9F7F6", 100: "BFE6E0", 200: "BFE6E0", 300: "6EC9C3", 400: "6EC9C3", 500: "1C39BB", 600: "1C39BB", 700: "1C39BB", 800: "1F3E46", 900: "1F3E46", 950: "1F3E46" }, dark: "1F3E46",
-        light: { A: "E9F7F6", B: "BFE6E0", T: "1F3E46", ACC: "1C39BB" }
+        light: { A: "E9F7F6", B: "BFE6E0", T: "1F3E46", ACC: "1C39BB" },
+        ui: { light: true, BG: "E9F7F6", P1: "FFFFFF", P2: "F2FAF9", IN: "FFFFFF", BD: "BFE6E0", TX: "1F3E46", MU: "5B7F83", ACC: "1C39BB", BTN: "1C39BB", BTN2: "3A55CC" }
       },
       navy: {
         name: "블루 네이비", desc: "상단만 어두운 네이비", sw: ["3A4A7A", "2C3E8C", "1C39BB", "D9E2FF", "F4F7FF"],
         pal: { 50: "F0F4FF", 100: "D9E2FF", 200: "D9E2FF", 300: "D9E2FF", 400: "9AA6C2", 500: "1C39BB", 600: "1C39BB", 700: "1C39BB", 800: "3A4A7A", 900: "3A4A7A", 950: "3A4A7A" }, dark: "3A4A7A",
-        top: { T: "3A4A7A", T2: "2C3E8C", BTN: "1C39BB", PG: "F4F7FF" }
+        top: { T: "3A4A7A", T2: "2C3E8C", BTN: "1C39BB", PG: "F4F7FF" },
+        ui: { light: false, BG: "151C36", P1: "1B2547", P2: "232D52", IN: "11182F", BD: "3A4A7A", TX: "F4F7FF", MU: "9AA6C2", ACC: "D9E2FF", BTN: "1C39BB", BTN2: "3A55CC" }
       },
       lightblue: {
         name: "밝은 블루", desc: "상단이 밝은 화이트·블루", sw: ["FDFDFB", "D9E2FF", "9AA6C2", "3A4A7A", "1C39BB"],
         pal: { 50: "F0F4FF", 100: "D9E2FF", 200: "D9E2FF", 300: "9AA6C2", 400: "9AA6C2", 500: "1C39BB", 600: "1C39BB", 700: "1C39BB", 800: "3A4A7A", 900: "3A4A7A", 950: "3A4A7A" }, dark: "3A4A7A",
-        light: { A: "FDFDFB", B: "D9E2FF", T: "3A4A7A", ACC: "1C39BB" }
+        light: { A: "FDFDFB", B: "D9E2FF", T: "3A4A7A", ACC: "1C39BB" },
+        ui: { light: true, BG: "F0F4FF", P1: "FFFFFF", P2: "FDFDFB", IN: "FFFFFF", BD: "D9E2FF", TX: "3A4A7A", MU: "6A77A0", ACC: "1C39BB", BTN: "1C39BB", BTN2: "3A55CC" }
       }
     };
     const THEME_ORDER = ["default", "tealblue", "navy", "lightblue"];
@@ -2404,6 +2414,42 @@
       }
     });
 
+
+    // 편집 화면(왼쪽 패널·상단·미리보기 영역)에도 선택한 테마 색을 입힙니다. 기본 테마는 원래 색 그대로입니다.
+    function applyBuilderTheme(key) {
+      const t = REPORT_THEMES[key], u = t && t.ui;
+      let el = document.getElementById("builderThemeCss");
+      if (!el) { el = document.createElement("style"); el.id = "builderThemeCss"; document.head.appendChild(el); }
+      if (!u) { el.textContent = ""; return; }
+      const c = (h) => "#" + h;
+      const L = u.light;
+      el.textContent = [
+        "body{background:" + c(u.BG) + "!important;color:" + c(u.TX) + "!important}",
+        ".bg-slate-900,[class*=\"bg-slate-900/\"]{background:" + c(u.P1) + "!important}",
+        ".bg-slate-800,[class*=\"bg-slate-800/\"],.bg-slate-700{background:" + c(u.P2) + "!important}",
+        ".hover\\:bg-slate-700:hover,.hover\\:bg-slate-600:hover,.hover\\:bg-slate-800\\/50:hover{background:" + c(L ? u.BG : u.BD) + "!important}",
+        ".bg-slate-950,[class*=\"bg-slate-950/\"]{background:" + c(u.IN) + "!important}",
+        "div.flex-1.bg-slate-950.flex-col{background:" + c(u.BG) + "!important}",
+        ".border-slate-700,.border-slate-800,.border-slate-600,.border-t,.border-b,.border-r{border-color:" + c(u.BD) + "!important}",
+        ".text-white,.text-slate-100,.text-slate-200,.text-slate-300,.hover\\:text-white:hover{color:" + c(u.TX) + "!important}",
+        ".text-slate-400,.text-slate-500{color:" + c(u.MU) + "!important}",
+        ".text-teal-300,.text-teal-400{color:" + c(u.ACC) + "!important}",
+        "input,select,textarea{color:" + c(u.TX) + "!important}",
+        ".focus\\:border-teal-500:focus,.hover\\:border-teal-400:hover,.border-teal-400{border-color:" + c(u.ACC) + "!important}",
+        ".bg-teal-500,.bg-teal-400,.bg-indigo-600{background:" + c(u.BTN) + "!important;color:#fff!important}",
+        ".hover\\:bg-teal-400:hover,.hover\\:bg-indigo-500:hover{background:" + c(u.BTN2) + "!important}",
+        ".bg-teal-500 *,.bg-indigo-600 *,.text-slate-950{color:#fff!important}",
+        "[class*=\"bg-teal-500/\"],[class*=\"bg-teal-950\"]{background:" + c(u.ACC) + (L ? "1f" : "26") + "!important}",
+        "[class*=\"border-teal-500/\"]{border-color:" + c(u.ACC) + "66!important}",
+        ".custom-scroll::-webkit-scrollbar-track{background:" + c(u.P1) + "}.custom-scroll::-webkit-scrollbar-thumb{background:" + c(u.BD) + "}"
+      ].concat(L ? [
+        ".text-amber-300,.text-amber-400,.text-amber-200\\/80{color:#b45309!important}",
+        ".text-rose-300,.text-rose-400{color:#be123c!important}",
+        ".text-emerald-400{color:#047857!important}",
+        "input::placeholder,textarea::placeholder{color:" + c(u.MU) + "aa!important}"
+      ] : []).join("\n");
+    }
+
     function renderThemePicker() {
       const cur = document.getElementById("inpTheme").value || "default";
       document.getElementById("themePicker").innerHTML = THEME_ORDER.map((k) => {
@@ -2416,6 +2462,7 @@
           <span class="block text-[10px] text-slate-400">${t.desc}</span>
         </button>`;
       }).join("");
+      applyBuilderTheme(cur);
     }
     document.getElementById("themePicker").addEventListener("click", (e) => {
       const b = e.target.closest("[data-theme]");
