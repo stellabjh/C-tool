@@ -292,6 +292,19 @@
                 <input id="inpIncome" type="number" min="0" step="100" placeholder="예: 6000" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
               </div>
             </div>
+            <div class="mt-2">
+              <label class="text-[11px] text-slate-400 block mb-1">🏥 실손의료비 세대 (자동: 계약일로 판별)</label>
+              <select id="inpSilsonGen" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white">
+                <option value="auto">자동 (계약일로 판별)</option>
+                <option value="pre">표준화 이전 (~2009.7)</option>
+                <option value="s1">표준화 1차 (2009.8~2013.3)</option>
+                <option value="s2">표준화 2차 (2013.4~2015.12)</option>
+                <option value="s3">표준화 3차 (2016.1~2017.3)</option>
+                <option value="good">착한실손 (2017.4~2021.6)</option>
+                <option value="g4">4세대 (2021.7~2026.4)</option>
+                <option value="g5">5세대 (2026.5~)</option>
+              </select>
+            </div>
           </div>
 
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
@@ -331,7 +344,7 @@
               </button>
             </div>
             <p class="text-[11px] text-slate-400">
-              AI가 추출한 기존계약(`existingContracts`), 신규제안(`proposedContracts`), 감액정보 및 시나리오를 직접 수정할 수 있습니다.
+              AI가 추출한 기존계약(`existingContracts`), 신규제안(`proposedContracts`), 감액정보를 직접 수정할 수 있습니다.
             </p>
             <textarea id="jsonEditor" rows="22" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 font-mono text-[11px] text-teal-300 focus:outline-none focus:border-teal-500 custom-scroll"></textarea>
           </div>
@@ -408,14 +421,14 @@
       agentComment: "",
       profile: { jobType: "근로소득자", income: "5000" },
       heroMetrics: [],
-      includeTabs: { status: true, contracts: true, compare: true, scenarios: true },
+      includeTabs: { status: true, contracts: true, silson: true, compare: true },
+      silson: { generation: "auto" },
       analysisMetrics: [],
       gapAnalysis: [],
       // 신규 추가: 기존 계약 리스트 (개별 체크박스 및 상세페이지 지원)
       existingContracts: [],
       // 신규 추가: 새로운 제안 계약 리스트 (개별 체크박스, 담보별 체크박스, 감액기간 지원)
       proposedContracts: [],
-      scenarios: [],
       riders: [],
       scriptPrompts: {
         p1: localStorage.getItem("SAVED_PROMPT_1") || DEFAULT_PROMPTS.p1,
@@ -1147,44 +1160,212 @@
     }
 
     // =========================================================================
-    // 시나리오의 예상 수령액 계산. AI는 상황과 담보 id만 정하고 금액은 계약에서 계산합니다.
-    // (예전 형식 — riderId 없이 금액 문자열이 들어 있는 데이터는 그대로 보여줍니다)
-    // generateClientHtml 안에 toString()으로 삽입됩니다. parseNum 은 고객 화면에 정의되어 있습니다.
+    // 실손의료비 세대별 자료 (「실손의료비 변천사」 표 기준) 와 '내 세대 → 5세대' 비교 화면
+    // 고객 화면 안에 SILSON_DATA 상수와 renderSilsonView.toString() 으로 삽입됩니다.
     // =========================================================================
-    function resolveScenario(s, existingList, proposedList) {
-      const payouts = Array.isArray(s.payouts) ? s.payouts : [];
-      if (!payouts.some((p) => p && p.riderId)) return s;
-      const fmtM = (v) => {
-        if (!v || v <= 0) return "0원";
-        if (v >= 10000) {
-          const eok = Math.floor(v / 10000), man = Math.round(v % 10000);
-          return man > 0 ? eok + "억 " + man.toLocaleString() + "만원" : eok + "억원";
-        }
-        return Math.round(v).toLocaleString() + "만원";
-      };
-      const find = (id) => {
-        for (const list of [existingList, proposedList]) {
-          for (const c of list) {
-            for (const r of c.riders || []) if (r.id === id) return { c, r };
-          }
+    const SILSON_DATA = {
+      gens: [
+        { key: "pre", name: "표준화 이전", nick: "1세대 (구실손)", period: "~2009.7", from: "", to: "2009-07" },
+        { key: "s1", name: "표준화 1차", nick: "2세대 초기", period: "2009.8~2013.3", from: "2009-08", to: "2013-03" },
+        { key: "s2", name: "표준화 2차", nick: "2세대", period: "2013.4~2015.12", from: "2013-04", to: "2015-12" },
+        { key: "s3", name: "표준화 3차", nick: "2세대 후기", period: "2016.1~2017.3", from: "2016-01", to: "2017-03" },
+        { key: "good", name: "착한실손", nick: "3세대", period: "2017.4~2021.6", from: "2017-04", to: "2021-06" },
+        { key: "g4", name: "4세대 실손", nick: "4세대", period: "2021.7~2026.4", from: "2021-07", to: "2026-04" },
+        { key: "g5", name: "5세대 실손", nick: "최신", period: "2026.5~", from: "2026-05", to: "" }
+      ],
+      rows: [
+        { label: "갱신주기", v: ["3년 또는 5년", "3년", "1년", "1년", "1년", "1년", "1년"] },
+        { label: "재가입주기", v: ["없음", "없음", "15년", "15년", "15년", "5년", "5년"] },
+        { label: "본인부담금", v: [
+          "입원 0원 · 통원(처방조제 포함) 5천원",
+          "급여·비급여 10% · 통원 최소공제(의원 1만/병원 1.5만/종합병원 2만/처방조제 8천원) · 입원 자기부담금 200만원 초과 시 전액보장",
+          "급여 10% · 비급여 10%(~15.8월) → 20%(15.9월~) · 통원 최소공제 동일 · 입원 자기부담금 200만원 초과 시 전액보장",
+          "급여 10% · 비급여 20% · 통원 최소공제 동일 · 입원 자기부담금 200만원 초과 시 전액보장",
+          "급여 10% · 비급여 20% · 3대 비급여 30% · 통원 최소공제 동일 · 입원 자기부담금 200만원 초과 시 전액보장",
+          "급여 20% · 비급여 30% · 통원 최소공제(의원·병원 1만/상급종합·종합 2만) · 입원 자기부담금 200만원 초과 시 전액보장",
+          "급여 20% / 중증 비급여 30%(최소 3만원) / 비중증 비급여 50%(최소 5만원) · 입원 급여 자기부담 연 200만원 초과 시 전액보장"
+        ] },
+        { label: "보장한도", v: [
+          "회사별·가입시기별 상이",
+          "입원 연 5천만원 · 통원 회당 30만원(외래 25만+처방 5만), 연 180회",
+          "입원 연 5천만원 · 통원 회당 30만원(외래 25만+처방 5만), 연 180회",
+          "입원 연 5천만원 · 통원 회당 30만원(외래 25만+처방 5만), 연 180회",
+          "입원 연 5천만원 · 통원 회당 30만원(외래 25만+처방 5만), 연 180회",
+          "입원: 급여/비급여 각 연 5천만원 · 통원: 급여/비급여 각 회당 20만원 (비급여 연 100회)",
+          "급여 5천만원(통원 회당 20만원 포함) · 비급여 중증 5천만원 / 비중증 1천만원(통원 회당 20만원·입원 300만원)"
+        ] },
+        { label: "입원 시 면책기간", v: [
+          "동일 질병은 퇴원 후 180일 경과 시 보장",
+          "최초입원일로부터 365일 이후 90일 면책",
+          "최초입원일로부터 365일 이후 90일 면책",
+          "5천만원 소진 시 소진 후 90일 면책 (275일 내 소진 시 최초입원일 365일 후)",
+          "5천만원 소진 시 소진 후 90일 면책 (275일 내 소진 시 최초입원일 365일 후)",
+          "5천만원 소진 시 소진 후 90일 면책 (275일 내 소진 시 최초입원일 365일 후)",
+          "한도 소진 시 다음 계약일(1년 뒤)까지 보장 없음"
+        ] },
+        { label: "비급여 3대 (MRI·도수치료·주사제)", v: [
+          "입원/통원 의료비에 포함", "입원/통원 의료비에 포함", "입원/통원 의료비에 포함", "입원/통원 의료비에 포함",
+          "본인부담 30%, 최소공제 3만원 · 도수·체외충격파·증식치료 연 350만원/50회 · 주사제 연 250만원/50회 · MRI/MRA 연 300만원",
+          "본인부담 30%, 최소공제 3만원 · 도수·체외충격파·증식치료 연 350만원/50회 · 주사제 연 250만원/50회 · MRI/MRA 연 300만원(횟수 제한 X) · 도수치료 10회마다 효과 확인 필요",
+          "중증 3대 비급여: 3만원과 30% 중 큰 금액 부담 · 비중증 MRI 등 영상진단: 5만원과 50% 중 큰 금액 부담 · 도수치료·비급여 주사제·체외충격파는 보장 제외"
+        ] },
+        { label: "무사고자 할인제도", v: ["없음", "없음", "없음", "없음", "직전 2년 비급여 지급이 없으면 차기 1년 보험료 10% 할인", "직전 2년 비급여 지급이 없으면 차기 1년 보험료 10% 할인 (중증질환 산정특례 대상자 제외)", "직전 2년 비급여 지급이 없으면 차기 1년 보험료 10% 할인"] },
+        { label: "보험료 차등제 (할인/할증)", v: ["없음", "없음", "없음", "없음", "없음", "비급여 지급보험금에 따라 5단계 차등 (0원 할인 · 100만원 동결 · 150만원 200% · 200만원 300% · 300만원 400%)", "비중증 비급여 지급보험금에 따라 5단계 차등 (0원 할인 · 100만원 동결 · 150만원 200% · 200만원 300% · 300만원 400%)"] },
+        { label: "납입중지제도", v: ["없음", "해외 장기체류(3개월) · 단체실손 동시가입 납입중지", "해외 장기체류(3개월) · 단체실손 동시가입 납입중지", "해외 장기체류(3개월) · 단체실손 동시가입 납입중지", "해외 장기체류(3개월) · 단체실손 동시가입 납입중지", "해외 장기체류(3개월) · 단체실손 동시가입 납입중지", "해외 장기체류(3개월) · 단체실손 동시가입 납입중지"] },
+        { label: "정신 및 행동장애", v: ["면책", "면책", "면책", "일부 보장(우울증·주의력결핍·틱장애 등)", "일부 보장(우울증·주의력결핍·틱장애 등)", "일부 보장(우울증·주의력결핍·틱장애 등)", "일부 보장(우울증·주의력결핍·틱장애 등)"] },
+        { label: "한방병원 / 치과", v: ["한방 입원 보장·통원 면책 / 치과 질병 면책·상해 보장", "급여 보장 / 비급여 면책", "급여 보장 / 비급여 면책", "급여 보장 / 비급여 면책", "급여 보장 / 비급여 면책", "급여 보장 / 비급여 면책", "급여 보장 / 비급여 면책"] },
+        { label: "치매", v: ["일부 회사 보장 / 일부 회사 면책", "보장", "보장", "보장", "보장", "보장", "보장"] },
+        { label: "직장·항문 관련 질환", v: ["면책", "급여 보장 / 비급여 면책", "급여 보장 / 비급여 면책", "급여 보장 / 비급여 면책", "급여 보장 / 비급여 면책", "급여 보장 / 비급여 면책", "급여 보장 / 비급여 면책"] },
+        { label: "비응급환자 응급실 내원", v: ["보장", "보장", "보장", "면책", "면책", "면책", "면책"] },
+        { label: "비만(E66)", v: ["면책", "면책", "면책", "면책", "면책", "면책", "면책"] },
+        { label: "습관성유산·불임·인공수정 관련 합병증", v: ["면책", "면책", "면책", "면책", "면책", "면책", "면책"] },
+        { label: "임신·출산 관련", v: ["면책", "면책", "면책", "면책", "면책", "면책", "급여 보장 (O00~O099, 가입일이 분만예정일 280일 이전인 경우)"] }
+      ],
+      about: {
+        pre: ["갱신 없이 오래 유지된 계약이 많고, 입원 본인부담이 0원이라 보장이 가장 두터운 세대입니다.", "통원은 처방조제 포함 5천원만 부담하고, 비급여 3대 항목도 입원·통원 의료비에 그대로 포함됩니다.", "회사·가입시기마다 한도와 조건이 달라 증권으로 한도를 따로 확인해야 합니다."],
+        s1: ["본인부담이 급여·비급여 10%로 낮은 편이고, 입원 자기부담금이 연 200만원을 넘으면 전액 보장됩니다.", "3년 주기로 갱신되며 재가입 주기가 없어 보장 구조가 그대로 유지됩니다."],
+        s2: ["1년 갱신으로 바뀌고 15년마다 재가입 주기가 생긴 세대입니다.", "비급여 본인부담이 2015년 9월부터 10%에서 20%로 올랐습니다."],
+        s3: ["급여 10%·비급여 20% 구조이고, 정신 및 행동장애 일부가 보장에 들어왔습니다.", "비응급 응급실 내원은 면책으로 바뀌었고, 한도 소진 시점 기준으로 면책기간이 적용됩니다."],
+        good: ["비급여 중 도수치료·주사제·MRI 등 3대 비급여를 별도 한도로 나누고 본인부담 30%를 적용합니다.", "직전 2년 비급여 지급이 없으면 보험료 10%를 할인받습니다."],
+        g4: ["급여 20%·비급여 30%로 부담이 커지고, 급여·비급여 한도가 각각 나뉜 세대입니다.", "비급여 지급보험금에 따라 보험료가 5단계로 할인·할증되고, 재가입 주기는 5년입니다."],
+        g5: ["급여는 20%를 부담하고, 비급여는 중증(30%)과 비중증(50%)으로 나누어 비중증 비급여 보장은 크게 줄었습니다.", "도수치료·비급여 주사제·체외충격파는 보장되지 않으며, 임신·출산 관련 급여 의료비가 새로 보장됩니다."]
+      },
+      // 5세대로 바꿀 때: good(좋아지는 점) / bad(불리해지는 점) / note(참고)
+      vs5: {
+        pre: {
+          good: ["정신 및 행동장애(우울증·주의력결핍 등) 일부가 보장됩니다.", "임신·출산 관련 급여 의료비가 보장됩니다.", "급여 중심의 통원 최소공제가 분명해지고 보장 기준이 표준화됩니다.", "대체로 보험료 부담이 낮아지는 구조입니다(연령·상품별 확인 필요)."],
+          bad: ["본인부담이 입원 0원·통원 5천원에서 급여 20%·비급여 30~50%로 커집니다.", "보장 한도가 생깁니다(비급여 비중증 연 1천만원 등).", "도수치료·비급여 주사제·체외충격파가 보장에서 빠집니다.", "1년 갱신이 되고 5년마다 재가입(심사) 주기가 생겨 보험료가 오르거나 조건이 달라질 수 있습니다.", "비응급 응급실 내원이 면책이고, 한도 소진 후에는 다음 계약일까지 보장이 없습니다."],
+          note: ["원래 가입한 실손은 보험 전환을 한 번 하면 되돌릴 수 없으므로, 의료 이용 빈도와 질병 이력을 함께 보고 결정해야 합니다."]
+        },
+        s1: {
+          good: ["정신 및 행동장애 일부, 임신·출산 급여가 보장됩니다.", "무사고 할인 등 보험료 조정 제도를 이용할 수 있습니다.", "대체로 보험료 부담이 낮아지는 구조입니다(연령·상품별 확인 필요)."],
+          bad: ["본인부담이 급여 10%·비급여 10%에서 급여 20%·비급여 30~50%로 높아집니다.", "도수치료·비급여 주사제·체외충격파가 보장되지 않고, 비중증 비급여는 연 1천만원 한도입니다.", "비응급 응급실 내원 보장이 없어지고, 면책 구조가 한도 소진 시 다음 계약일까지로 바뀝니다.", "재가입 주기 없음에서 5년 주기로 바뀝니다."],
+          note: []
+        },
+        s2: {
+          good: ["정신 및 행동장애 일부, 임신·출산 급여가 보장됩니다.", "무사고 할인 등 보험료 조정 제도를 이용할 수 있습니다.", "대체로 보험료 부담이 낮아지는 구조입니다(연령·상품별 확인 필요)."],
+          bad: ["본인부담이 급여 10%·비급여 20%에서 급여 20%·비급여 30~50%로 높아집니다.", "도수치료·비급여 주사제·체외충격파가 보장되지 않고, 비중증 비급여는 연 1천만원 한도입니다.", "비응급 응급실 내원이 면책이고 재가입 주기가 15년에서 5년으로 짧아집니다."],
+          note: []
+        },
+        s3: {
+          good: ["임신·출산 급여가 보장됩니다.", "무사고 할인과 보험료 차등제로 의료 이용이 적으면 보험료가 낮아질 수 있습니다.", "대체로 보험료 부담이 낮아지는 구조입니다(연령·상품별 확인 필요)."],
+          bad: ["본인부담이 급여 10%·비급여 20%에서 급여 20%·비급여 30~50%로 높아집니다.", "도수치료·비급여 주사제·체외충격파가 보장되지 않고, 비중증 비급여는 연 1천만원 한도입니다.", "한도 소진 후 90일 면책에서 다음 계약일까지 보장 없음으로 바뀝니다.", "재가입 주기가 15년에서 5년으로 짧아집니다."],
+          note: []
+        },
+        good: {
+          good: ["임신·출산 급여가 보장됩니다.", "비급여 보험료 차등제가 생겨 의료 이용이 적으면 보험료가 낮아질 수 있습니다.", "대체로 보험료 부담이 낮아지는 구조입니다(연령·상품별 확인 필요)."],
+          bad: ["급여 본인부담이 10%에서 20%로, 비급여는 20~30%에서 30~50%로 높아집니다.", "도수치료·비급여 주사제·체외충격파가 보장되지 않고, 비중증 비급여는 연 1천만원 한도입니다.", "한도 소진 후 90일 면책에서 다음 계약일까지 보장 없음으로 바뀝니다.", "재가입 주기가 15년에서 5년으로 짧아집니다."],
+          note: ["3세대 이후에는 무사고 할인이 있어, 비급여를 거의 쓰지 않았다면 유지 비용이 낮을 수 있습니다."]
+        },
+        g4: {
+          good: ["급여 의료비의 통원·입원 한도가 5천만원 안에서 통합 관리되어 급여 보장은 안정적입니다.", "임신·출산 관련 급여 의료비가 새로 보장됩니다.", "비급여 지급이 적은 고객은 차등제 구간에서 유리할 수 있습니다."],
+          bad: ["비급여 본인부담이 30%에서 중증 30% / 비중증 50%로 갈립니다.", "비중증 비급여는 연 1천만원 한도로 줄고, 도수치료·비급여 주사제·체외충격파는 보장 제외입니다.", "한도 소진 후 90일 면책에서 다음 계약일까지 보장 없음으로 바뀝니다.", "MRI 등 영상진단 비급여는 5만원 또는 50% 중 큰 금액을 부담합니다."],
+          note: ["4세대와 5세대는 재가입 주기(5년)와 1년 갱신이 같아, 차이는 비급여 보장의 범위와 본인부담에 집중됩니다."]
+        },
+        g5: { good: [], bad: [], note: ["현재 가장 최신 세대입니다. 별도의 세대 변경 비교는 필요하지 않습니다."] }
+      }
+    };
+
+    function renderSilsonView(DATA, existingList, sel) {
+      const root = document.getElementById("silsonRoot");
+      if (!root) return;
+      const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const gens = SILSON_DATA.gens;
+      const byKey = (k) => gens.find((g) => g.key === k) || null;
+      const genByDate = (txt) => {
+        const m = String(txt || "").match(/((?:19|20)\d{2})\D{0,3}(\d{1,2})/);
+        if (!m) return null;
+        const ym = m[1] + "-" + ("0" + m[2]).slice(-2);
+        for (const g of gens) {
+          if ((!g.from || ym >= g.from) && (!g.to || ym <= g.to)) return g.key;
         }
         return null;
       };
-      let sum = 0;
-      const out = payouts.map((p) => {
-        const hit = p && p.riderId ? find(p.riderId) : null;
-        if (!hit) return null; // 계약에서 사라진 담보는 보여주지 않음
-        const { c, r } = hit;
-        const base = parseNum(r.amountManwon !== undefined ? r.amountManwon : r.amount);
-        const daily = /일당/.test(r.name);
-        const days = daily ? (Number(p.days) > 0 ? Number(p.days) : 1) : 0;
-        const amt = daily ? base * days : base;
-        const included = !!(c.checked && r.checked);
-        if (included) sum += amt;
-        const notes = [p.note || "", daily ? fmtM(base) + " × " + days + "일" : "", included ? "" : "체크 해제된 담보"].filter(Boolean);
-        return { name: r.name + (c.company ? " (" + c.company + ")" : ""), amount: included ? fmtM(amt) : "제외", note: notes.join(" · ") };
-      }).filter(Boolean);
-      return Object.assign({}, s, { payouts: out, summaryAmount: out.length ? fmtM(sum) : "해당 담보 없음" });
+
+      // 고객 계약에서 실손 담보 찾기
+      const found = [];
+      (existingList || []).forEach((c) => {
+        const isSilson = /실손|실비|의료비/.test(String(c.productName || "")) || (c.riders || []).some((r) => /실손|실비|의료비/.test(String(r.name || "")));
+        if (!isSilson) return;
+        found.push({ company: c.company || "", product: c.productName || "", date: c.contractDate || "", key: genByDate(c.contractDate) });
+      });
+      const setting = DATA && DATA.silson && DATA.silson.generation;
+      const forced = setting && setting !== "auto" && byKey(setting) ? setting : "";
+      const detected = forced || (found.find((f) => f.key) || {}).key || "";
+      const cur = sel && byKey(sel) ? sel : detected;
+
+      if (!root.__bound) {
+        root.__bound = true;
+        root.addEventListener("click", (e) => {
+          const b = e.target.closest("[data-gen]");
+          if (b) { window.__silsonSel = b.getAttribute("data-gen"); renderSilsonView(DATA, existingList, window.__silsonSel); }
+        });
+      }
+      root.__args = [DATA, existingList];
+
+      const chips = gens.map((g) => {
+        const on = g.key === cur, mine = g.key === detected;
+        return '<button type="button" data-gen="' + g.key + '" class="shrink-0 text-left rounded-xl border px-3 py-2 transition ' +
+          (on ? "bg-slate-900 text-white border-slate-900 shadow" : "bg-white text-slate-700 border-slate-200 hover:border-teal-400") + '">' +
+          '<span class="block text-[11px] font-extrabold">' + esc(g.name) + (mine ? ' <span class="text-teal-400">● 가입</span>' : "") + "</span>" +
+          '<span class="block text-[10px] ' + (on ? "text-slate-300" : "text-slate-400") + '">' + esc(g.period) + "</span></button>";
+      }).join("");
+
+      let html = '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
+        '<div><h2 class="text-sm font-extrabold text-slate-900">🏥 실손의료비 세대 분석</h2>' +
+        '<p class="text-[11px] text-slate-500 mt-0.5">가입 세대를 확인하고, 최신 5세대 실손으로 바꾸면 무엇이 달라지는지 살펴봅니다.</p></div>' +
+        '<div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">' + chips + "</div>";
+      if (found.length) {
+        html += '<div class="rounded-xl bg-teal-50 border border-teal-200 px-3 py-2 text-[11px] text-teal-900">' +
+          found.map((f) => "· " + esc((f.company + " " + f.product).trim()) + " — " + (f.date ? "계약일 " + esc(f.date) : "계약일 미확인") + (f.key ? " → <b>" + esc(byKey(f.key).name) + "</b>" : "")).join("<br>") + "</div>";
+      }
+      html += "</div>";
+
+      if (!cur) {
+        html += '<div class="bg-white rounded-2xl border border-slate-200 p-6 text-center space-y-1">' +
+          '<p class="text-2xl">🏥</p><p class="text-xs font-bold text-slate-700">고객의 실손 가입 세대를 확인하지 못했습니다.</p>' +
+          '<p class="text-[11px] text-slate-400">위에서 세대를 눌러 내용을 보거나, 설계사 화면에서 세대를 직접 지정해 주세요.</p></div>';
+        root.innerHTML = html;
+        return;
+      }
+
+      const g = byKey(cur), g5 = byKey("g5"), idx = gens.indexOf(g);
+      const note = forced && forced === cur ? "설계사가 지정한 세대" : (cur === detected ? "계약일로 확인한 세대" : "선택한 세대");
+      html += '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">' +
+        '<div class="bg-gradient-to-r from-slate-900 to-teal-900 text-white px-4 py-3"><p class="text-[10px] text-teal-200 font-bold">' + esc(note) + "</p>" +
+        '<h3 class="text-base font-black">' + esc(g.name) + ' <span class="text-xs font-semibold text-slate-300">· ' + esc(g.nick) + " · " + esc(g.period) + "</span></h3></div>" +
+        '<div class="p-4 space-y-3"><ul class="space-y-1.5 text-xs text-slate-700 leading-relaxed list-disc pl-4">' +
+        SILSON_DATA.about[cur].map((t) => "<li>" + esc(t) + "</li>").join("") + "</ul>" +
+        '<div class="grid grid-cols-2 gap-2">' +
+        ["갱신주기", "재가입주기", "본인부담금", "보장한도"].map((lb) => {
+          const r = SILSON_DATA.rows.find((x) => x.label === lb);
+          return '<div class="rounded-xl bg-slate-50 border border-slate-200 p-2.5' + (lb === "본인부담금" || lb === "보장한도" ? " col-span-2" : "") + '"><p class="text-[10px] font-bold text-slate-400">' + esc(lb) + '</p><p class="text-[11px] text-slate-800 leading-relaxed">' + esc(r.v[idx]) + "</p></div>";
+        }).join("") + "</div></div></div>";
+
+      const v = SILSON_DATA.vs5[cur];
+      if (cur === "g5") {
+        html += '<div class="bg-teal-50 border border-teal-200 rounded-2xl p-4 text-xs text-teal-900 font-bold">✅ 이미 최신 5세대 실손입니다. 변경 비교가 필요하지 않습니다.</div>';
+      } else {
+        const list = (items, cls, icon) => items.length
+          ? '<ul class="space-y-1.5">' + items.map((t) => '<li class="flex gap-1.5 text-xs leading-relaxed ' + cls + '"><span class="shrink-0">' + icon + "</span><span>" + esc(t) + "</span></li>").join("") + "</ul>" : "";
+        html += '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
+          '<h3 class="text-sm font-extrabold text-slate-900">🔄 ' + esc(g.name) + " → 5세대 실손으로 바꾸면</h3>" +
+          '<div class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-1.5"><p class="text-[11px] font-extrabold text-emerald-700">좋아지는 점</p>' + list(v.good, "text-emerald-900", "👍") + "</div>" +
+          '<div class="rounded-xl border border-rose-200 bg-rose-50/60 p-3 space-y-1.5"><p class="text-[11px] font-extrabold text-rose-700">부족해지거나 불리해지는 점</p>' + list(v.bad, "text-rose-900", "⚠️") + "</div>" +
+          (v.note.length ? '<div class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1.5"><p class="text-[11px] font-extrabold text-slate-600">참고</p>' + list(v.note, "text-slate-700", "ℹ️") + "</div>" : "") + "</div>";
+
+        const rows = SILSON_DATA.rows.map((r) => {
+          const same = r.v[idx] === r.v[6];
+          return '<tr class="border-t border-slate-100 align-top' + (same ? "" : " bg-amber-50/50") + '"><td class="py-2 px-2 font-bold text-slate-700 text-[11px] w-[22%]">' + esc(r.label) + "</td>" +
+            '<td class="py-2 px-2 text-[11px] text-slate-700">' + esc(r.v[idx]) + "</td>" +
+            '<td class="py-2 px-2 text-[11px] ' + (same ? "text-slate-500" : "text-slate-900 font-semibold") + '">' + esc(r.v[6]) + "</td></tr>";
+        }).join("");
+        html += '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">' +
+          '<div class="px-4 py-3 border-b border-slate-100"><h3 class="text-sm font-extrabold text-slate-900">📊 항목별 비교</h3><p class="text-[10px] text-slate-400">노란 배경은 5세대에서 달라지는 항목입니다.</p></div>' +
+          '<div class="overflow-x-auto"><table class="w-full text-left"><thead class="bg-slate-900 text-white text-[10px]"><tr><th class="py-2 px-2">구분</th><th class="py-2 px-2">' + esc(g.name) + '</th><th class="py-2 px-2">' + esc(g5.name) + "</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+      }
+      html += '<p class="text-[10px] text-slate-400 leading-relaxed px-1">※ 세대 구분과 보장 내용은 「실손의료비 변천사」 자료 기준의 일반 안내이며, 실제 보장은 계약 증권·약관과 보험사 기준이 우선합니다. 실손 전환 전에는 병력·의료 이용 이력과 보험료를 반드시 함께 확인해 주세요.</p>';
+      root.innerHTML = html;
     }
 
     function renderStatusViews(DATA, existingList, proposedList) {
@@ -1581,7 +1762,7 @@
     <!-- 계약현황 요약: 탭 위에 항상 보이는 영역 (원래 히어로 자리) -->
     <div id="summaryRoot" class="relative overflow-hidden bg-gradient-to-br from-slate-900 via-teal-950 to-slate-900 text-white px-5 pt-5 pb-6"></div>
 
-    <!-- Navigation Tabs: 보장분석신호등 / 계약·담보 현황 / 계약·비교 / 상황예시 -->
+    <!-- Navigation Tabs: 보장분석신호등 / 계약·담보 현황 / 실손의료비 / 계약·비교 -->
     <div class="sticky top-[49px] z-30 bg-white border-b border-slate-200 px-2.5 py-2 shadow-sm nav-tabs-bar no-print">
       <div class="flex gap-1 bg-slate-100 p-1 rounded-xl text-center overflow-x-auto no-scrollbar">
         <button data-view="view-status" class="nav-btn py-2 rounded-lg text-[11px] font-extrabold bg-slate-900 text-white shadow transition">
@@ -1590,11 +1771,11 @@
         <button data-view="view-contracts" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           📁 계약·담보 현황
         </button>
+        <button data-view="view-silson" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
+          🏥 실손의료비
+        </button>
         <button data-view="view-compare" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           ⚖️ 계약·비교
-        </button>
-        <button data-view="view-scenarios" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
-          🩺 상황예시
         </button>
       </div>
     </div>
@@ -1685,25 +1866,10 @@
       <div id="contractsRoot" class="space-y-4"></div>
     </section>
 
-    <!-- VIEW 2: Scenarios -->
-    <main id="view-scenarios" class="view-section hidden p-4 space-y-4">
-      <div class="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-sm space-y-2.5 no-print">
-        <div class="relative">
-          <input id="scenarioSearch" type="text" placeholder="병명, 증상, 질병코드 검색..." class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-100 border border-slate-200 text-xs focus:outline-none focus:border-teal-600 focus:bg-white" />
-          <span class="absolute left-3 top-2.5 text-xs text-slate-400">🔍</span>
-        </div>
-        <div class="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-          <button data-cat="all" class="cat-chip px-3 py-1 rounded-full text-xs font-bold bg-teal-600 text-white shrink-0">전체보기</button>
-          <button data-cat="emergency" class="cat-chip px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 shrink-0">🚑 응급실</button>
-          <button data-cat="hospital" class="cat-chip px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 shrink-0">🏥 입원/수술</button>
-          <button data-cat="injury" class="cat-chip px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 shrink-0">🦴 상해/봉합/골절</button>
-          <button data-cat="birth" class="cat-chip px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 shrink-0">👶 출생/신생아</button>
-          <button data-cat="critical" class="cat-chip px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 shrink-0">🎗️ 중증/3대질병</button>
-        </div>
-      </div>
-
-      <div id="scenarioList" class="space-y-3.5"></div>
-    </main>
+    <!-- 실손의료비: 가입 세대 분석 + 5세대 전환 비교 -->
+    <section id="view-silson" class="view-section hidden p-4 space-y-4">
+      <div id="silsonRoot" class="space-y-4"></div>
+    </section>
 
   </div>
 
@@ -2013,7 +2179,7 @@
         ? compareFriendRowsHtml(friendSignals, formatManwon)
         : compareRowsHtml(existingList, proposedList, DATA.recommended, parseNum, formatManwon);
       renderStatusViews(DATA, existingList, proposedList);
-      if (window.__scenariosReady) renderScenarios();
+      renderSilsonView(DATA, existingList, window.__silsonSel);
     }
     ${normName.toString()}
     ${riderKind.toString()}
@@ -2022,85 +2188,10 @@
     ${compareFriendRowsHtml.toString()}
     ${computeFiveFriends.toString()}
     ${computeFriendSignals.toString()}
-    ${resolveScenario.toString()}
+    const SILSON_DATA = ${JSON.stringify(SILSON_DATA).replace(/</g, "\\u003c")};
+    ${renderSilsonView.toString()}
     ${renderStatusViews.toString()}
     renderCompareView();
-
-    // =========================================================================
-    // 3. 상황별 시나리오 렌더링
-    // =========================================================================
-    let activeCat = "all";
-    function renderScenarios() {
-      const q = (document.getElementById("scenarioSearch").value || "").trim().toLowerCase();
-      const allScenarios = (DATA.scenarios || []).map((s) => resolveScenario(s, existingList, proposedList));
-      const container = document.getElementById("scenarioList");
-
-      if (allScenarios.length === 0) {
-        container.innerHTML = \`
-          <div class="bg-white rounded-2xl p-8 text-center space-y-2 border border-slate-200">
-            <p class="text-2xl">📄</p>
-            <p class="text-xs font-bold text-slate-700">아직 입력된 보장 시나리오가 없습니다.</p>
-            <p class="text-[11px] text-slate-400">좌측 패널에서 가입설계서 서류를 넣고 [AI 자동 분석]을 눌러주세요.</p>
-          </div>\`;
-        return;
-      }
-
-      const list = allScenarios.filter(s => {
-        const matchCat = activeCat === "all" || s.category === activeCat;
-        const textPool = \`\${s.title} \${s.badge} \${s.ConditionCode} \${s.highlight} \${(s.payouts||[]).map(p=>p.name).join(" ")}\`.toLowerCase();
-        return matchCat && (!q || textPool.includes(q));
-      });
-
-      if (list.length === 0) {
-        container.innerHTML = \`<div class="bg-white rounded-2xl p-8 text-center text-xs text-slate-400 border border-slate-200">검색 조건에 맞는 시나리오가 없습니다.</div>\`;
-        return;
-      }
-
-      container.innerHTML = list.map(s => \`
-        <article class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div class="p-4 border-b border-slate-100">
-            <div class="flex items-center justify-between gap-2 mb-1.5">
-              <span class="px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-700 text-[11px] font-extrabold border border-teal-200">\${s.icon || '📌'} \${s.badge || '보장예시'}</span>
-              <span class="text-[11px] font-mono text-slate-400">\${s.ConditionCode || ''}</span>
-            </div>
-            <h3 class="text-sm font-extrabold text-slate-900 leading-snug">\${s.title || ''}</h3>
-            <div class="mt-2.5 flex items-baseline justify-between bg-slate-900 text-white rounded-xl px-3.5 py-2.5">
-              <span class="text-[11px] text-slate-300">예상 수령액 합계</span>
-              <span class="text-base font-black text-teal-300">\${s.summaryAmount || ''}</span>
-            </div>
-            <p class="mt-2.5 text-xs text-slate-600 leading-relaxed">\${s.highlight || ''}</p>
-          </div>
-          <div class="p-4 bg-slate-50/70 space-y-2">
-            <p class="text-[11px] font-bold text-slate-500">세부 지급 내역</p>
-            \${(s.payouts || []).map(p => \`
-              <div class="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-slate-200/80 text-xs">
-                <div>
-                  <p class="font-bold text-slate-800">\${p.name || ''}</p>
-                  <p class="text-[11px] text-slate-500">\${p.note || ''}</p>
-                </div>
-                <span class="font-extrabold text-teal-700 shrink-0 ml-2">\${p.amount || ''}</span>
-              </div>
-            \`).join("")}
-            \${s.caution ? \`<p class="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mt-2">⚠️ \${s.caution}</p>\` : ''}
-          </div>
-        </article>
-      \`).join("");
-    }
-
-    document.getElementById("scenarioSearch").addEventListener("input", renderScenarios);
-    document.querySelectorAll(".cat-chip").forEach(btn => {
-      btn.addEventListener("click", () => {
-        activeCat = btn.dataset.cat;
-        document.querySelectorAll(".cat-chip").forEach(b => {
-          b.className = b === btn
-            ? "cat-chip px-3 py-1 rounded-full text-xs font-bold bg-teal-600 text-white shrink-0"
-            : "cat-chip px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 shrink-0";
-        });
-        renderScenarios();
-      });
-    });
-    window.__scenariosReady = true;
-    renderScenarios();
 
     // 탭 전환
     document.querySelectorAll(".nav-btn").forEach(btn => {
@@ -2119,8 +2210,8 @@
     // 설계사가 고른 화면만 고객에게 보여줍니다. (제외한 화면은 탭과 내용, 인쇄에서도 빠짐)
     // 미리보기(편집 모드)에서는 탭 이름 옆 체크박스로 포함 여부를 고르고, 고객용 파일에는 체크박스가 없습니다.
     (function () {
-      const inc = Object.assign({ status: true, contracts: true, compare: true, scenarios: true }, DATA.includeTabs || {});
-      const map = { status: "view-status", contracts: "view-contracts", compare: "view-compare", scenarios: "view-scenarios" };
+      const inc = Object.assign({ status: true, contracts: true, silson: true, compare: true }, DATA.includeTabs || {});
+      const map = { status: "view-status", contracts: "view-contracts", silson: "view-silson", compare: "view-compare" };
       const keys = Object.keys(map);
       // 계약·비교 탭의 '기존 가입 계약 목록'과 '새로운 제안 계약 목록'은 설계사가 체크하며 비교할 때만 쓰는 영역입니다.
       // 고객용 파일에는 넣지 않고(비교분석표와 합계만 남김), 미리보기에는 안내를 달아 보여줍니다.
@@ -2250,6 +2341,7 @@
       document.getElementById("inpIncome").value = pf.income ?? "";
       // 배우자 연소득·자녀 수 입력은 없앴으므로, 예전 기록에 남아 있어도 이어받지 않습니다.
       currentData.profile = { jobType: pf.jobType || "", income: pf.income ?? "" };
+      document.getElementById("inpSilsonGen").value = (currentData.silson && currentData.silson.generation) || "auto";
 
       const sp = currentData.scriptPrompts || {};
       document.getElementById("scriptPrompt1").value = sp.p1 || "";
@@ -2291,6 +2383,7 @@
         jobType: document.getElementById("inpJobType").value,
         income: document.getElementById("inpIncome").value
       };
+      currentData.silson = { generation: document.getElementById("inpSilsonGen").value || "auto" };
 
       currentData.scriptPrompts = {
         p1: document.getElementById("scriptPrompt1").value,
@@ -2751,7 +2844,6 @@
       const keys = which ? [Number(which)] : [1, 2, 3, 4, 5];
       const cName = currentData.clientName || "고객";
       const pName = currentData.productName || "보험";
-      const scenarioTitles = (currentData.scenarios || []).map(s => s.title).filter(Boolean).join(", ");
       const contractsText = [...(currentData.existingContracts || []).map(c => `기존: ${c.company} ${c.productName} ${c.premium}`), ...(currentData.proposedContracts || []).map(c => `신규 제안: ${c.company} ${c.productName} ${c.premium}`)].join(" / ");
       const gapsText = coverageFactsText(currentData.existingContracts, currentData.proposedContracts, currentData.recommended, currentData.profile);
       const prompts = currentData.scriptPrompts;
@@ -2766,7 +2858,6 @@
 고객 [${cName}님]의 [${pName}] 분석 결과를 바탕으로, 설계사가 실제로 사용할 상황별 맞춤 대사를 작성하세요.
 
 [계약] ${contractsText || "없음"}
-[주요 상황 예시] ${scenarioTitles || "없음"}
 
 [계산된 보장 현황 — 금액과 부족 여부는 이 숫자만 근거로 쓰고, 다른 금액을 지어내지 마세요]
 ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
@@ -2805,7 +2896,7 @@ ${keys.map(k => `상황${k}: ${situation[k]}`).join("\n")}
     document.getElementById("btnRegenerateScripts").addEventListener("click", () => regenerateScripts());
 
     // =========================================================================
-    // 1단계: 파일별 파싱 / 2단계: 통합 분석 (부족보장·시나리오·대사)
+    // 1단계: 파일별 파싱 / 2단계: 통합 분석 (부족보장·대사)
     // =========================================================================
     const FILE_PARSE_SCHEMA = `{
   "docType": "existing | proposed | unknown",
@@ -2992,7 +3083,7 @@ ${FILE_PARSE_SCHEMA}` });
         }
 
         // ---- 2단계: 통합 분석 (텍스트만 전송하므로 빠름) ----
-        statusText.textContent = "2/2단계: 부족 보장·시나리오·상담 대사 분석 중...";
+        statusText.textContent = "2/2단계: 부족 보장·상담 대사 분석 중...";
         const prompts = currentData.scriptPrompts;
         const synthPrompt = `당신은 대한민국 최고의 보험 상품 분석가이자 정밀 보장분석·리모델링 전문가입니다.
 아래는 고객 서류에서 이미 추출한 기존 계약과 신규 제안 계약입니다. 이를 근거로 고객용 리포트 요약과 5대 실전 제안 대사를 작성하세요. 계약 정보 자체는 다시 쓰지 마세요. 부족 보장 진단, 신호등(다섯 친구 포함), 시나리오별 예상 수령액은 화면에서 계약 금액으로 직접 계산하므로 금액을 쓰지 마세요. 시나리오는 상황만 정하고, 그 상황에서 지급되는 담보를 위 계약 목록의 id(각 담보 맨 앞 값)로 가리키세요. 계약에 없는 담보는 넣지 마세요.
@@ -3023,7 +3114,6 @@ ${rawText || "없음"}
   "premium1": "월 납입 보험료 요약",
   "premium2": "변경후 보험료 요약 (없으면 빈 문자열)",
   "agentComment": "보장분석 총평 2문장",
-  "scenarios": [ { "id": "고유영문ID", "category": "emergency | hospital | injury | birth | critical 중 택1", "badge": "배지명", "icon": "이모지 1개", "title": "실제 상황 제목", "ConditionCode": "질병코드 또는 조건", "highlight": "보장 포인트 설명 (금액·숫자는 쓰지 마세요)", "payouts": [ { "riderId": "위 계약 목록의 담보 id (맨 앞 값)", "days": 일당형 담보일 때만 예상 일수(숫자), "note": "지급 기준 설명 (금액은 쓰지 마세요)" } ], "caution": "유의사항" } ],
   "scripts": { "s1": "", "s2": "", "s3": "", "s4": "", "s5": "" }
 }`;
 
@@ -3066,7 +3156,7 @@ ${rawText || "없음"}
         const total = ((performance.now() - t0) / 1000).toFixed(1);
         let msg = `✨ 분석 완료 (${total}초)\n- 읽은 파일 ${okItems.length}/${items.length}개 · 기존 ${merged.existingContracts.length}건 / 신규 ${merged.proposedContracts.length}건`;
         if (failed.length) msg += `\n⚠️ 읽지 못한 파일: ${failed.map(f => f.file?.name).join(", ")}`;
-        if (synthError) msg += `\n⚠️ 부족보장·시나리오·대사 생성은 실패했습니다(${synthError}). 계약·담보 표는 정상 반영되었으니 [제안 대사] 탭의 일괄 생성 버튼으로 다시 시도해 주세요.`;
+        if (synthError) msg += `\n⚠️ 부족보장·대사 생성은 실패했습니다(${synthError}). 계약·담보 표는 정상 반영되었으니 [제안 대사] 탭의 일괄 생성 버튼으로 다시 시도해 주세요.`;
         msg += "\n\n우측 미리보기의 [🚦 보장분석신호등] 탭을 확인해 보세요.";
         alert(msg);
       } catch (err) {
