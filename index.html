@@ -959,8 +959,7 @@
       return signals.filter((s) => s.items.length > 0).map((s) => `
         <tr class="bg-slate-100/80">
           <td colspan="4" class="py-1.5 px-2.5">
-            <span class="text-[10px] font-bold text-slate-400">${esc(s.order)}</span>
-            <span class="text-[11px] font-extrabold text-slate-800 ml-1">${esc(s.label)}</span>
+            <span class="text-[11px] font-extrabold text-slate-800">${esc(s.label)}</span>
             <span class="ml-1.5 px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${CHIP[s.status.color]}">${s.status.text}</span>
           </td>
         </tr>
@@ -1540,7 +1539,7 @@
     }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    .nav-btn[data-excluded], .view-section[data-excluded] { display: none !important; }
+    [data-excluded][data-excluded] { display: none !important; }
     .nav-btn { flex: 1 0 auto; padding-left: 0.65rem; padding-right: 0.65rem; white-space: nowrap; }
     details > summary { list-style: none; }
     details > summary::-webkit-details-marker { display: none; }
@@ -1627,7 +1626,7 @@
             <p id="sumTotalPrem" class="text-sm font-black text-white mt-0.5">0원</p>
           </div>
         </div>
-        <p class="text-[11px] text-slate-300 leading-relaxed">
+        <p id="compareHelpText" class="text-[11px] text-slate-300 leading-relaxed">
           💡 아래에서 <strong>기존 계약</strong>이나 <strong>새로운 제안 상품(및 세부 담보)</strong>의 체크박스를 켜고 끄면 하단 비교분석표가 즉시 바뀝니다! 카드를 클릭하면 <strong>상세페이지</strong>가 펼쳐집니다.
         </p>
       </div>
@@ -1663,7 +1662,7 @@
           <table class="w-full text-left border-collapse text-xs">
             <thead>
               <tr class="border-b border-slate-200 bg-slate-100 text-slate-700 font-extrabold text-[11px]">
-                <th class="py-2.5 px-2.5 rounded-tl-xl">담보 (다섯 친구)</th>
+                <th class="py-2.5 px-2.5 rounded-tl-xl">담보</th>
                 <th class="py-2.5 px-2 text-right">기존 선택보장</th>
                 <th class="py-2.5 px-2 text-right text-teal-700">+ 신규 선택추가</th>
                 <th class="py-2.5 px-2.5 text-right rounded-tr-xl bg-slate-900 text-teal-300">최종 합산보장</th>
@@ -2123,6 +2122,24 @@
       const inc = Object.assign({ status: true, contracts: true, compare: true, scenarios: true }, DATA.includeTabs || {});
       const map = { status: "view-status", contracts: "view-contracts", compare: "view-compare", scenarios: "view-scenarios" };
       const keys = Object.keys(map);
+      // 계약·비교 탭의 '기존 가입 계약 목록'과 '새로운 제안 계약 목록'은 설계사가 체크하며 비교할 때만 쓰는 영역입니다.
+      // 고객용 파일에는 넣지 않고(비교분석표와 합계만 남김), 미리보기에는 안내를 달아 보여줍니다.
+      const plannerCards = ["existingContractsList", "proposedContractsList"].map(function (id) {
+        const el = document.getElementById(id);
+        return el ? el.closest(".rounded-2xl") : null;
+      }).filter(Boolean);
+      const plannerExtras = ["btnResetSelection", "compareHelpText"].map(function (id) { return document.getElementById(id); }).filter(Boolean);
+      if (!EDIT_MODE) {
+        plannerCards.concat(plannerExtras).forEach(function (el) { el.setAttribute("data-excluded", "1"); });
+      } else {
+        plannerCards.forEach(function (card) {
+          const note = document.createElement("div");
+          note.className = "no-print";
+          note.style.cssText = "margin:0 0 8px;padding:5px 10px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;color:#c2410c;font-size:10.5px;font-weight:700;";
+          note.textContent = "🔒 설계사용 화면 · 고객에게 보내는 리포트에는 포함되지 않습니다";
+          card.insertBefore(note, card.firstChild);
+        });
+      }
       if (!EDIT_MODE) {
         let first = null;
         keys.forEach(function (k) {
