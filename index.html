@@ -43,6 +43,11 @@
         <span>📁</span> 분석 보관함 (<span id="historyCountBadge">0</span>)
       </button>
 
+      <!-- 내 컴퓨터 폴더에 저장 (Chrome/Edge) -->
+      <button id="btnPickFolder" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition flex items-center gap-1 max-w-[210px]">
+        <span>📂</span> <span class="shrink-0">저장 폴더:</span> <span id="folderLabel" class="truncate">미설정</span>
+      </button>
+
       <!-- 백업 저장/불러오기 -->
       <button id="btnExportData" title="현재 분석 데이터를 내 PC에 파일로 저장" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 transition">
         💾 백업저장
@@ -298,7 +303,7 @@
 
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
             <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">💰 다섯 친구 · 소득 기준 필요 보장 (단위: 만원)</h3>
-            <p class="text-[11px] text-slate-400 leading-relaxed">직업군이나 연소득을 입력하면 고객 리포트에 병원비·생활비·부양비·법률배상·유동자산 필요 금액이 표시됩니다. 비워 두면 표시하지 않습니다.</p>
+            <p class="text-[11px] text-slate-400 leading-relaxed">기본값은 근로소득자 · 연소득 5,000만원입니다. 고객 리포트에 병원비·생활비·부양비·법률배상·유동자산 필요 금액이 표시됩니다. 직업군을 '선택 안 함'으로 하고 연소득을 비우면 표시하지 않습니다.</p>
             <div class="grid grid-cols-2 gap-2.5">
               <div>
                 <label class="text-[11px] text-slate-400 block mb-1">직업군</label>
@@ -314,14 +319,6 @@
               <div>
                 <label class="text-[11px] text-slate-400 block mb-1">연소득 (비우면 직업군 기본값)</label>
                 <input id="inpIncome" type="number" min="0" step="100" placeholder="예: 6000" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
-              </div>
-              <div>
-                <label class="text-[11px] text-slate-400 block mb-1">배우자 연소득</label>
-                <input id="inpSpouseIncome" type="number" min="0" step="100" placeholder="없으면 비워두세요" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
-              </div>
-              <div>
-                <label class="text-[11px] text-slate-400 block mb-1">자녀 수</label>
-                <input id="inpChildren" type="number" min="0" step="1" placeholder="0" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
               </div>
             </div>
           </div>
@@ -380,6 +377,7 @@
         분석했던 고객을 클릭하면 보장분석 리포트 화면과 5대 대사가 즉시 복원됩니다.
       </p>
       <div id="historyListContainer" class="flex-1 overflow-y-auto custom-scroll space-y-2.5 pr-1"></div>
+      <div id="folderSection" class="shrink-0 border-t border-slate-800 pt-3 space-y-2 max-h-[38%] overflow-y-auto custom-scroll"></div>
       <div class="pt-3 border-t border-slate-800 flex justify-between items-center shrink-0">
         <button id="btnClearAllHistory" class="text-[11px] font-semibold text-rose-400 hover:text-rose-300">
           ⚠️ 보관함 전체 삭제
@@ -417,7 +415,7 @@
       agentPhone: localStorage.getItem("SAVED_AGENT_PHONE") || "",
       agentOrg: localStorage.getItem("SAVED_AGENT_ORG") || "",
       agentComment: "",
-      profile: { jobType: "", income: "", spouseIncome: "", childCount: "" },
+      profile: { jobType: "근로소득자", income: "5000" },
       heroMetrics: [],
       analysisMetrics: [],
       gapAnalysis: [],
@@ -461,8 +459,11 @@
       const record = JSON.parse(JSON.stringify(dataObj));
       record.savedAt = timeStr;
       if (!record.id) record.id = "REC_" + Date.now();
+      dataObj.id = record.id; // 이후 저장은 같은 기록을 덮어쓰도록 (그렇지 않으면 반영할 때마다 새 기록이 쌓임)
 
       const existingIdx = history.findIndex(h => h.id === record.id);
+      const prevFileName = existingIdx >= 0 ? history[existingIdx].fileName : null;
+      record.fileName = recordFileName(record);
       if (existingIdx >= 0) {
         history[existingIdx] = record;
       } else {
@@ -472,6 +473,7 @@
 
       localStorage.setItem("INSURANCE_ANALYSIS_HISTORY", JSON.stringify(history));
       updateHistoryBadge();
+      queueFolderSave(record, prevFileName);
     }
 
     function updateHistoryBadge() {
@@ -534,8 +536,263 @@
       updateHistoryBadge();
     };
 
+    // =========================================================================
+    // 내 컴퓨터 폴더에 저장 (File System Access API: 데스크톱 Chrome / Edge)
+    //  - 폴더를 한 번 지정하면 기억해 두고, 분석 결과를 저장할 때마다 "고객명_번호.json" 파일로도 기록합니다.
+    //  - 브라우저를 다시 열면 보안상 폴더 접근 권한을 한 번 더 허용해야 합니다. (버튼 클릭 한 번)
+    // =========================================================================
+    const FOLDER_SUPPORTED = typeof window.showDirectoryPicker === "function";
+    let folderHandle = null;
+    let folderState = FOLDER_SUPPORTED ? "none" : "unsupported"; // none | ready | needsPermission | unsupported
+    let folderRecords = [];
+    const folderTimers = {};
+    const folderWritten = {};
+
+    const folderKv = {
+      open() {
+        return new Promise((res, rej) => {
+          const rq = indexedDB.open("insureport-builder", 1);
+          rq.onupgradeneeded = () => rq.result.createObjectStore("kv");
+          rq.onsuccess = () => res(rq.result);
+          rq.onerror = () => rej(rq.error);
+        });
+      },
+      async get(k) {
+        const db = await this.open();
+        return new Promise((res, rej) => { const rq = db.transaction("kv").objectStore("kv").get(k); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); });
+      },
+      async set(k, v) {
+        const db = await this.open();
+        return new Promise((res, rej) => { const tx = db.transaction("kv", "readwrite"); tx.objectStore("kv").put(v, k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+      },
+      async del(k) {
+        const db = await this.open();
+        return new Promise((res, rej) => { const tx = db.transaction("kv", "readwrite"); tx.objectStore("kv").delete(k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+      }
+    };
+
+    function showToast(msg, bad) {
+      let el = document.getElementById("toast");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "toast";
+        document.body.appendChild(el);
+      }
+      el.className = "fixed bottom-5 right-5 z-[60] max-w-sm px-4 py-2.5 rounded-xl text-xs font-semibold shadow-2xl border transition-opacity " +
+        (bad ? "bg-rose-950 text-rose-200 border-rose-500/40" : "bg-teal-950 text-teal-100 border-teal-500/40");
+      el.textContent = msg;
+      el.style.opacity = "1";
+      clearTimeout(el._t);
+      el._t = setTimeout(() => { el.style.opacity = "0"; }, 3000);
+    }
+
+    function updateFolderUi() {
+      const text = { unsupported: "지원 안 함", none: "미설정", needsPermission: `${folderHandle ? folderHandle.name : ""} (권한 필요)`, ready: folderHandle ? folderHandle.name : "" }[folderState];
+      document.getElementById("folderLabel").textContent = text;
+      document.getElementById("btnPickFolder").className =
+        "px-3 py-2 rounded-xl hover:bg-slate-700 text-xs font-semibold border transition flex items-center gap-1 max-w-[210px] " +
+        (folderState === "ready" ? "bg-slate-800 text-teal-200 border-teal-500/50"
+          : folderState === "needsPermission" ? "bg-slate-800 text-amber-300 border-amber-500/50"
+          : "bg-slate-800 text-slate-200 border-slate-700");
+      document.getElementById("btnPickFolder").title =
+        folderState === "ready" ? "분석 결과가 이 폴더에 파일로도 저장됩니다. 클릭하면 폴더를 바꿀 수 있습니다."
+        : folderState === "needsPermission" ? "클릭해서 폴더 접근 권한을 허용해 주세요."
+        : folderState === "unsupported" ? "이 브라우저는 폴더 저장을 지원하지 않습니다. 데스크톱 Chrome 또는 Edge를 사용해 주세요."
+        : "분석 결과를 저장할 내 컴퓨터의 폴더를 지정합니다.";
+    }
+
+    async function folderPermission(request) {
+      if (!folderHandle) return false;
+      const opts = { mode: "readwrite" };
+      try {
+        let perm = await folderHandle.queryPermission(opts);
+        if (perm !== "granted" && request) perm = await folderHandle.requestPermission(opts);
+        folderState = perm === "granted" ? "ready" : "needsPermission";
+      } catch (e) {
+        folderState = "needsPermission";
+      }
+      updateFolderUi();
+      return folderState === "ready";
+    }
+
+    async function initFolder() {
+      updateFolderUi();
+      if (!FOLDER_SUPPORTED) return;
+      try {
+        const h = await folderKv.get("dir");
+        if (h) { folderHandle = h; await folderPermission(false); }
+      } catch (e) { /* 저장된 폴더가 없으면 미설정 */ }
+      updateFolderUi();
+    }
+
+    const safeFileName = (s) => String(s || "").replace(/[\\/:*?"<>|\r\n\t]/g, "_").trim().slice(0, 40) || "고객";
+    const recordFileName = (rec) => `${safeFileName(rec.clientName)}_${rec.id}.json`;
+
+    // 한글 등이 든 이름을 만들 수 없는 환경이면 영문 이름(REC_번호.json)으로 대신 저장합니다.
+    async function getRecordFileHandle(rec) {
+      try {
+        return await folderHandle.getFileHandle(rec.fileName, { create: true });
+      } catch (e) {
+        if (e.name !== "TypeMismatchError" && e.name !== "TypeError") throw e;
+        rec.fileName = `${rec.id}.json`;
+        return await folderHandle.getFileHandle(rec.fileName, { create: true });
+      }
+    }
+
+    async function writeRecordToFolder(rec, prevName) {
+      const fh = await getRecordFileHandle(rec);
+      const w = await fh.createWritable();
+      await w.write(JSON.stringify(rec, null, 2));
+      await w.close();
+      const old = folderWritten[rec.id] || prevName;
+      if (old && old !== rec.fileName) { try { await folderHandle.removeEntry(old); } catch (e) { /* 이미 없으면 무시 */ } }
+      folderWritten[rec.id] = rec.fileName;
+    }
+
+    function queueFolderSave(rec, prevName) {
+      if (folderState === "needsPermission") { showToast("폴더에 저장하려면 상단 [저장 폴더]를 눌러 권한을 허용해 주세요.", true); return; }
+      if (folderState !== "ready") return;
+      clearTimeout(folderTimers[rec.id]);
+      folderTimers[rec.id] = setTimeout(async () => {
+        try {
+          await writeRecordToFolder(rec, prevName);
+          showToast(`📂 폴더에 저장됨: ${rec.fileName}`);
+        } catch (e) {
+          if (e.name === "NotAllowedError" || e.name === "SecurityError") { folderState = "needsPermission"; updateFolderUi(); }
+          showToast("폴더 저장 실패: " + (e.message || e.name), true);
+        }
+      }, 400);
+    }
+
+    async function exportAllToFolder() {
+      if (folderState !== "ready") return;
+      const history = getStoredHistory();
+      let ok = 0;
+      for (const rec of history) {
+        const prev = rec.fileName;
+        rec.fileName = recordFileName(rec);
+        try { await writeRecordToFolder(rec, prev); ok++; } catch (e) { showToast("폴더 저장 실패: " + (e.message || e.name), true); break; }
+      }
+      localStorage.setItem("INSURANCE_ANALYSIS_HISTORY", JSON.stringify(history));
+      showToast(`📂 보관함 ${ok}건을 '${folderHandle.name}' 폴더에 저장했습니다.`);
+      refreshFolderSection();
+    }
+
+    // 폴더 선택 창을 열어 저장 위치를 지정합니다.
+    async function chooseFolder() {
+      if (!FOLDER_SUPPORTED) { alert("이 브라우저는 폴더 저장을 지원하지 않습니다. 데스크톱 Chrome 또는 Edge에서 열어 주세요."); return; }
+      let h;
+      try { h = await window.showDirectoryPicker({ id: "insureport-save", mode: "readwrite" }); } catch (e) { return; } // 취소
+      folderHandle = h;
+      try { await folderKv.set("dir", h); } catch (e) { /* 기억하지 못해도 이번 접속에서는 사용 가능 */ }
+      folderState = "ready";
+      updateFolderUi();
+      const n = getStoredHistory().length;
+      if (n > 0 && confirm(`'${h.name}' 폴더를 저장 위치로 지정했습니다.\n보관함의 기존 기록 ${n}건도 이 폴더에 저장할까요?`)) await exportAllToFolder();
+      else showToast(`📂 저장 폴더 지정: ${h.name}`);
+      refreshFolderSection();
+    }
+
+    async function pickFolder() {
+      if (folderState === "needsPermission") {
+        if (await folderPermission(true)) { showToast(`📂 '${folderHandle.name}' 폴더 접근을 허용했습니다.`); refreshFolderSection(); }
+        return;
+      }
+      if (folderState === "ready" && !confirm(`현재 저장 폴더: ${folderHandle.name}\n다른 폴더로 바꾸시겠습니까?`)) return;
+      await chooseFolder();
+    }
+
+    async function clearFolder() {
+      if (!confirm("저장 폴더 지정을 해제할까요?\n(폴더 안의 파일은 지워지지 않습니다.)")) return;
+      folderHandle = null;
+      folderState = FOLDER_SUPPORTED ? "none" : "unsupported";
+      try { await folderKv.del("dir"); } catch (e) { /* 무시 */ }
+      updateFolderUi();
+      refreshFolderSection();
+    }
+
+    async function listFolderRecords() {
+      const out = [];
+      for await (const h of folderHandle.values()) {
+        if (h.kind !== "file" || !/\.json$/i.test(h.name)) continue;
+        try {
+          const f = await h.getFile();
+          if (f.size > 20 * 1024 * 1024) continue;
+          const rec = JSON.parse(await f.text());
+          if (rec && typeof rec === "object" && (rec.clientName !== undefined || rec.existingContracts || rec.proposedContracts)) {
+            out.push({ fileName: h.name, rec, modified: f.lastModified });
+          }
+        } catch (e) { /* 읽을 수 없는 파일은 건너뜀 */ }
+      }
+      return out.sort((a, b) => b.modified - a.modified).slice(0, 100);
+    }
+
+    function refreshFolderSection() {
+      if (!document.getElementById("historyModal").classList.contains("hidden")) renderFolderSection();
+    }
+
+    async function renderFolderSection() {
+      const box = document.getElementById("folderSection");
+      const btn = "px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-semibold text-slate-200 transition";
+      if (folderState === "unsupported") {
+        box.innerHTML = `<p class="text-[11px] text-slate-500">📂 폴더 저장은 데스크톱 Chrome 또는 Edge에서 사용할 수 있습니다.</p>`;
+        return;
+      }
+      if (folderState === "none") {
+        box.innerHTML = `<div class="flex items-center justify-between gap-2"><p class="text-[11px] text-slate-400">내 컴퓨터의 폴더를 지정하면 분석 결과를 파일(.json)로도 저장합니다.</p><button onclick="pickFolder()" class="${btn} shrink-0">📂 저장 폴더 지정</button></div>`;
+        return;
+      }
+      if (folderState === "needsPermission") {
+        box.innerHTML = `<div class="flex items-center justify-between gap-2"><p class="text-[11px] text-amber-300">📂 '${escHtml(folderHandle.name)}' 폴더 접근 권한이 필요합니다.</p><div class="flex gap-1.5 shrink-0"><button onclick="pickFolder()" class="${btn}">권한 허용</button><button onclick="chooseFolder()" class="${btn}">폴더 변경</button></div></div>`;
+        return;
+      }
+      box.innerHTML = `
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[11px] font-bold text-teal-300 truncate">📂 저장 폴더: ${escHtml(folderHandle.name)}</p>
+          <div class="flex gap-1.5 shrink-0">
+            <button onclick="exportAllToFolder()" class="${btn}">보관함 전체 저장</button>
+            <button onclick="chooseFolder()" class="${btn}">변경</button>
+            <button onclick="clearFolder()" class="${btn} text-rose-300">해제</button>
+          </div>
+        </div>
+        <div id="folderList" class="space-y-1.5"><p class="text-[11px] text-slate-500">폴더의 파일을 읽는 중...</p></div>`;
+      try {
+        folderRecords = await listFolderRecords();
+      } catch (e) {
+        document.getElementById("folderList").innerHTML = `<p class="text-[11px] text-rose-300">폴더를 읽지 못했습니다: ${escHtml(e.message || e.name)}</p>`;
+        return;
+      }
+      document.getElementById("folderList").innerHTML = folderRecords.length === 0
+        ? `<p class="text-[11px] text-slate-500">폴더에 저장된 분석 파일이 없습니다. 분석하면 이곳에 자동 저장됩니다.</p>`
+        : folderRecords.map((it, i) => `
+          <div class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 hover:border-teal-500/50 flex items-center justify-between gap-2 transition">
+            <div class="min-w-0">
+              <p class="text-[11px] font-bold text-slate-200 truncate">${escHtml(it.rec.clientName || "고객")} 님 · ${escHtml(it.rec.productName || "맞춤 보장 플랜")}</p>
+              <p class="text-[10px] text-slate-500 truncate">${escHtml(it.fileName)} · ${new Date(it.modified).toLocaleString("ko-KR")}</p>
+            </div>
+            <button onclick="loadFolderRecord(${i})" class="px-2.5 py-1 rounded-lg bg-teal-500/20 text-teal-300 text-[11px] font-bold hover:bg-teal-500 hover:text-slate-950 transition shrink-0">불러오기</button>
+          </div>`).join("");
+    }
+
+    window.loadFolderRecord = function (i) {
+      const it = folderRecords[i];
+      if (!it) return;
+      currentData = Object.assign({}, EMPTY_DATA, JSON.parse(JSON.stringify(it.rec)));
+      syncDataToInputs();
+      renderPreview();
+      document.getElementById("historyModal").classList.add("hidden");
+      document.getElementById("historyModal").classList.remove("flex");
+      alert(`[${it.rec.clientName || "고객"}] 님의 보장분석 리포트를 폴더에서 불러왔습니다!`);
+    };
+    window.pickFolder = pickFolder;
+    window.chooseFolder = chooseFolder;
+    window.clearFolder = clearFolder;
+    window.exportAllToFolder = exportAllToFolder;
+    document.getElementById("btnPickFolder").addEventListener("click", pickFolder);
+
     document.getElementById("btnOpenHistoryModal").addEventListener("click", () => {
       renderHistoryModal();
+      renderFolderSection();
       document.getElementById("historyModal").classList.remove("hidden");
       document.getElementById("historyModal").classList.add("flex");
     });
@@ -889,8 +1146,6 @@
       const companies = Object.keys(byCompany);
       const cName = DATA.clientName || "고객";
       const pName = DATA.productName || "맞춤 보장 설계안";
-      const picks = ["일반암", "뇌혈관", "허혈", "입원"].map((k) => rows.find((r) => r.cat.key === k)).filter(Boolean);
-      const hasContracts = existingList.length + proposedList.length > 0;
       const summaryHtml = `
         <div class="space-y-3">
           <div class="flex items-center justify-between gap-2">
@@ -913,18 +1168,6 @@
             <div class="rounded-xl bg-slate-950/60 border border-slate-800 p-3"><p class="text-[10px] text-slate-400">월 보험료 합계</p><p class="text-base font-black text-teal-300">${won(exPrem + prPrem)}</p></div>
             <div class="rounded-xl bg-slate-950/60 border border-slate-800 p-3"><p class="text-[10px] text-slate-400">선택 담보 / 보험사</p><p class="text-base font-black text-white">${riderCnt}개 <span class="text-xs font-bold text-slate-300">/ ${companies.length}개사</span></p></div>
           </div>
-          ${hasContracts ? `
-            <div class="space-y-1.5">
-              <p class="text-[11px] font-bold text-slate-300">핵심 보장 (선택한 계약 합산)</p>
-              <div class="grid grid-cols-2 gap-2">
-                ${picks.map((r) => `
-                  <div class="rounded-xl bg-white/10 border border-white/10 p-3">
-                    <p class="text-[10px] font-bold text-teal-300">${esc(r.cat.label)}</p>
-                    <p class="text-sm font-black text-white mt-0.5">${fmt(r.total)}</p>
-                    <p class="text-[11px] text-slate-300 mt-0.5 leading-snug">기존 ${fmt(r.ex)} + 신규 ${r.pr > 0 ? fmt(r.pr) : "-"} · ${LIGHT[r.j.color].emoji} ${r.j.text}</p>
-                  </div>`).join("")}
-              </div>
-            </div>` : ""}
           ${companies.length ? `
             <div class="space-y-1">
               <p class="text-[11px] font-bold text-slate-300">보험사별 월 보험료</p>
@@ -1774,8 +2017,8 @@
       const pf = currentData.profile || {};
       document.getElementById("inpJobType").value = pf.jobType || "";
       document.getElementById("inpIncome").value = pf.income ?? "";
-      document.getElementById("inpSpouseIncome").value = pf.spouseIncome ?? "";
-      document.getElementById("inpChildren").value = pf.childCount ?? "";
+      // 배우자 연소득·자녀 수 입력은 없앴으므로, 예전 기록에 남아 있어도 이어받지 않습니다.
+      currentData.profile = { jobType: pf.jobType || "", income: pf.income ?? "" };
 
       const sp = currentData.scriptPrompts || {};
       document.getElementById("scriptPrompt1").value = sp.p1 || "";
@@ -1817,9 +2060,7 @@
 
       currentData.profile = {
         jobType: document.getElementById("inpJobType").value,
-        income: document.getElementById("inpIncome").value,
-        spouseIncome: document.getElementById("inpSpouseIncome").value,
-        childCount: document.getElementById("inpChildren").value
+        income: document.getElementById("inpIncome").value
       };
 
       currentData.scriptPrompts = {
@@ -2472,7 +2713,7 @@ ${FILE_PARSE_SCHEMA}` });
         statusText.textContent = "2/2단계: 부족 보장·시나리오·상담 대사 분석 중...";
         const prompts = currentData.scriptPrompts;
         const synthPrompt = `당신은 대한민국 최고의 보험 상품 분석가이자 정밀 보장분석·리모델링 전문가입니다.
-아래는 고객 서류에서 이미 추출한 기존 계약과 신규 제안 계약입니다. 이를 근거로 고객용 리포트 요약과 5대 실전 제안 대사를 작성하세요. 계약 정보 자체는 다시 쓰지 마세요. 부족 보장 진단, 신호등(다섯 친구 포함), 핵심 보장 금액, 시나리오별 예상 수령액은 화면에서 계약 금액으로 직접 계산하므로 금액을 쓰지 마세요. 시나리오는 상황만 정하고, 그 상황에서 지급되는 담보를 위 계약 목록의 id(각 담보 맨 앞 값)로 가리키세요. 계약에 없는 담보는 넣지 마세요.
+아래는 고객 서류에서 이미 추출한 기존 계약과 신규 제안 계약입니다. 이를 근거로 고객용 리포트 요약과 5대 실전 제안 대사를 작성하세요. 계약 정보 자체는 다시 쓰지 마세요. 부족 보장 진단, 신호등(다섯 친구 포함), 시나리오별 예상 수령액은 화면에서 계약 금액으로 직접 계산하므로 금액을 쓰지 마세요. 시나리오는 상황만 정하고, 그 상황에서 지급되는 담보를 위 계약 목록의 id(각 담보 맨 앞 값)로 가리키세요. 계약에 없는 담보는 넣지 마세요.
 
 [고객] ${merged.customer.name || "미상"} (피보험자 ${merged.customer.insuredName || "미상"}, ${merged.customer.birth || "나이 미상"})
 [기존 계약] ${JSON.stringify(compactContracts(merged.existingContracts))}
@@ -2517,6 +2758,7 @@ ${rawText || "없음"}
 
         const savedAgent = { name: currentData.agentName, phone: currentData.agentPhone, org: currentData.agentOrg };
         const savedPrompts = currentData.scriptPrompts;
+        const savedProfile = currentData.profile;
 
         currentData = Object.assign({}, EMPTY_DATA, synth);
         currentData.id = "REC_" + Date.now();
@@ -2534,6 +2776,7 @@ ${rawText || "없음"}
         if (savedAgent.phone) currentData.agentPhone = savedAgent.phone;
         if (savedAgent.org) currentData.agentOrg = savedAgent.org;
         if (savedPrompts) currentData.scriptPrompts = savedPrompts;
+        if (savedProfile) currentData.profile = savedProfile;
 
         saveToHistory(currentData);
         syncDataToInputs();
@@ -2554,6 +2797,7 @@ ${rawText || "없음"}
     });
 
     updateHistoryBadge();
+    initFolder();
     syncDataToInputs();
     renderPreview();
     document.getElementById("btnRecheckServer").addEventListener("click", probeServerKey);
