@@ -856,6 +856,15 @@
     // generateClientHtml 안에 renderStatusViews.toString()으로 그대로 삽입되어
     // 고객 화면에서 실행됩니다. (parseNum 은 고객 화면 스크립트에 정의되어 있음)
     // =========================================================================
+    // 담보 이름의 군더더기를 지워 비교하기 쉽게 만듭니다. (무배당·특약·보장 같은 말, '(유사암 제외)' 같은 문구, 공백 제거)
+    function normName(s) {
+      return String(s || "")
+        .replace(/[()[\]{}]/g, " ")
+        .replace(/무배당|주계약|특약|보장|보험금|담보/g, "")
+        .replace(/(?:유사암|소액암|제자리암?|경계성종양?|갑상선암?|기타피부암?)\s*(?:등)?\s*제외/g, "")
+        .replace(/\s+/g, "");
+    }
+
     // 담보의 지급 유형. AI가 분류한 kind 가 있으면 그것을, 없으면(예전 데이터) 담보 이름으로 추정합니다.
     function riderKind(r) {
       if (r && r.kind) return String(r.kind);
@@ -880,7 +889,7 @@
       // 업계 일반 권장 기준(만원). 데이터 JSON의 recommended 로 덮어쓸 수 있음 (참고용 기준)
       const REC = Object.assign({ "일반암": 5000, "유사암": 1000, "뇌혈관": 3000, "허혈": 3000, "수술": 500, "입원": 5, "1인실": 10, "골절": 100 }, recommended || {});
       const cat = (r) => String(r.cat || "");
-      const name = (r) => String(r.name || "");
+      const name = (r) => normName(r.name);
       // 담보 이름에 글자만 들어 있다고 합치지 않고, 지급 유형(kind)까지 맞는 담보만 해당 항목에 더합니다.
       //  sum: 해당 담보 금액을 모두 더함 / contractMax: 계약마다 가장 큰 담보 하나만 (같은 사고에 중복 지급되지 않는 수술비)
       const CATS = [
@@ -987,7 +996,7 @@
       const friends = computeFiveFriends(profile);
       if (friends.length === 0) return [];
       const k = friends[0].value / 5000;
-      const nm = (r) => String(r.name || "");
+      const nm = (r) => normName(r.name);
       const ct = (r) => String(r.cat || "");
       const kindIn = (r, kind) => riderKind(r) === kind;
       const GENERAL_CANCER = (r) => kindIn(r, "진단비") && (ct(r).includes("일반암") || (!ct(r).includes("유사암") && /암/.test(nm(r)) && !/유사암|소액암|갑상선|제자리|경계성|표적|항암치료/.test(nm(r))));
@@ -1040,11 +1049,13 @@
         asset: "보험 서류로는 확인할 수 없는 항목입니다 (예금·적금 등은 별도 확인)"
       };
       const amountOf = (r) => num(r.amountManwon !== undefined ? r.amountManwon : r.amount);
+      // 서류를 읽을 때 AI가 표준 담보명(std)을 골랐다면 그 줄에만 반영하고, 없으면 이름 규칙으로 맞춥니다.
+      const matches = (it, r) => (r.std ? r.std === it.label : it.test(r));
       const sumFor = (list, it) => {
         let total = 0;
         list.forEach((con) => {
           if (!con.checked) return;
-          const vals = (con.riders || []).filter((r) => r.checked && it.test(r)).map(amountOf).filter((v) => v > 0);
+          const vals = (con.riders || []).filter((r) => r.checked && matches(it, r)).map(amountOf).filter((v) => v > 0);
           if (vals.length === 0) return;
           total += it.mode === "max" ? Math.max.apply(null, vals) : vals.reduce((a, b) => a + b, 0);
         });
@@ -1059,7 +1070,16 @@
         return { color: "red", text: "부족" };
       };
 
-      return friends.map((f) => {
+      const allDefs = Object.keys(GROUPS).reduce((a, key) => a.concat(GROUPS[key]), []);
+      const unmatched = [];
+      [existingList, proposedList].forEach((list, idx) => list.forEach((con) => {
+        if (!con.checked) return;
+        (con.riders || []).forEach((r) => {
+          if (r.checked && amountOf(r) > 0 && !allDefs.some((it) => matches(it, r))) unmatched.push({ name: String(r.name || ""), company: con.company || "", amount: amountOf(r), proposed: idx === 1 });
+        });
+      }));
+
+      const out = friends.map((f) => {
         const defs = GROUPS[f.key] || [];
         const items = defs.map((it) => {
           const current = sumFor(existingList, it) + sumFor(proposedList, it);
@@ -1082,6 +1102,9 @@
         const met = items.filter((x) => x.status.text === "충분" || x.status.text === "가입").length;
         return Object.assign({}, f, { items, status, met, total: items.length, pct: avg === null ? null : Math.round(avg * 100), basis: BASIS[f.key] });
       });
+      out.unmatched = unmatched;   // 표에 해당하는 줄이 없는 담보 (사라지지 않게 따로 보여줌)
+      out.standardNames = allDefs.map((it) => it.label);
+      return out;
     }
 
     // 빌더 전용: 상담 대사 생성에 쓸 "계산된 보장 현황" 문장 (모든 담보를 선택한 상태 기준)
@@ -1333,6 +1356,20 @@
             <span class="text-[9px] text-slate-400 shrink-0">권장 ${fmt(it.rec)}${it.shortfall > 0 ? ` · <span class="text-rose-500 font-bold">부족 ${fmt(it.shortfall)}</span>` : ""}</span>
           </div>`}
         </div>`;
+      const otherRidersHtml = (signalsEx.unmatched || []).filter((x) => !x.proposed).length === 0 ? "" : `
+              <details class="rounded-xl border border-slate-200">
+                <summary class="cursor-pointer px-2.5 py-2 flex items-center justify-between gap-2">
+                  <span class="text-xs font-extrabold text-slate-700">그 밖의 담보 <span class="text-[9px] font-bold text-slate-400">표에 없는 담보</span></span>
+                  <span class="text-[10px] text-slate-400">${signalsEx.unmatched.filter((x) => !x.proposed).length}개 ▾</span>
+                </summary>
+                <div class="px-2 pb-2 space-y-1">
+                  ${signalsEx.unmatched.filter((x) => !x.proposed).map((x) => `
+                    <div class="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80 flex items-center justify-between gap-2">
+                      <span class="min-w-0 truncate text-[11px]"><span class="font-bold text-slate-800">${esc(x.name)}</span> <span class="text-[9px] text-slate-400">${esc(x.company)}</span></span>
+                      <span class="text-[11px] font-black text-slate-900 shrink-0">${fmt(x.amount)}</span>
+                    </div>`).join("")}
+                </div>
+              </details>`;
       const friendDiagHtml = signalsEx.length === 0 ? "" : `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
           <div>
@@ -1361,6 +1398,7 @@
                 </summary>
                 ${s.items.length ? `<div class="px-2 pb-2 space-y-1">${s.items.map(itemRowHtml).join("")}</div>` : ""}
               </details>`).join("")}
+            ${otherRidersHtml}
           </div>
         </div>`;
       const flatDiagHtml = `
@@ -1947,6 +1985,7 @@
       renderStatusViews(DATA, existingList, proposedList);
       if (window.__scenariosReady) renderScenarios();
     }
+    ${normName.toString()}
     ${riderKind.toString()}
     ${computeCoverage.toString()}
     ${compareRowsHtml.toString()}
@@ -2638,6 +2677,7 @@ ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
         {
           "cat": "일반암 | 유사암 | 뇌혈관 | 허혈 | 수술 | 입원 | 1인실 | 골절 | 사망 | 배상책임 | 기타 중 택1",
           "kind": "진단비 | 수술비 | 입원일당 | 치료비 | 사망 | 후유장해 | 배상책임 | 기타 중 택1 (보험금 지급 유형)",
+          "std": "아래 [표준 담보명] 중 이 담보와 가장 같은 것 하나 (이름이 조금 달라도 같은 보장이면 선택, 해당하는 것이 없으면 빈 문자열)",
           "name": "담보(특약)명",
           "amount": "가입금액 표시 (예: 3,000만원)",
           "amountManwon": 만원 단위 숫자 (예: 3000),
@@ -2650,6 +2690,12 @@ ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
   ],
   "notes": "읽기 어려웠거나 확인이 필요한 부분 (없으면 빈 문자열)"
 }`;
+
+    // 담보별 진단현황 표의 담보명 (computeFriendSignals 의 GROUPS 라벨과 같아야 합니다)
+    const STD_RIDER_NAMES = ["실손의료비", "3대비급여실손", "상해수술비", "질병수술비", "암수술비", "뇌혈관질환수술비", "허혈성심장질환수술비", "상해입원일당", "질병입원일당", "치아보험",
+      "일반암 진단비", "유사암 진단비", "고액(표적)항암치료비", "뇌혈관질환 진단비", "뇌졸중 진단비", "뇌출혈 진단비", "허혈성심장질환 진단비", "급성심근경색 진단비",
+      "상해사망", "질병사망", "상해80%미만후유장해", "질병80%미만후유장해", "장기요양간병비", "경증치매진단", "간병인/간호간병상해일당", "간병인/간호간병질병일당",
+      "교통사고 벌금(대인/대물/스쿨존)", "교통사고 처리지원금", "교통사고처리 변호사선임비", "일상생활배상책임 가족(자녀)포함", "화재벌금"];
 
     async function parseOneFile(item, apiKey, rawText) {
       const t0 = performance.now();
@@ -2669,6 +2715,8 @@ ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
 - docType: 이미 가입한 계약의 증권/현황이면 existing, 새로 제안하는 설계서면 proposed, 판단이 어려우면 unknown.
 - cat 또는 name에 '일반암','유사암','뇌혈관','허혈','수술','입원','1인실','골절' 키워드가 해당될 때 반드시 포함하고, amountManwon은 만원 단위 숫자로 쓰세요.
 - 담보마다 kind(지급 유형)를 정확히 분류하세요. 예: '일반암진단비'는 cat 일반암·kind 진단비, '암수술비'는 kind 수술비, '질병입원일당'은 kind 입원일당, '항암방사선치료비'는 kind 치료비. 이름에 '암'이 들어 있어도 수술비·입원일당·치료비를 진단비로 분류하지 마세요.
+- [표준 담보명] 목록은 아래와 같습니다. 담보마다 std에 가장 가까운 표준 담보명을 정확히 그대로 적으세요. 예) '무배당 암진단특약(유사암 제외)'은 '일반암 진단비', '상해후유장해(3~100%)'는 '상해80%미만후유장해'. 같은 보장이 아닌데 억지로 고르지 말고 빈 문자열로 두세요.
+[표준 담보명] ${STD_RIDER_NAMES.join(' / ')}
 - 담보명(name)은 서류에 적힌 이름 그대로 적으세요('상해80%미만후유장해', '교통사고처리지원금', '일상생활배상책임(가족/자녀포함)' 등을 줄이거나 바꾸지 마세요).
 - amount는 서류에 적힌 가입금액 글자를 그대로 적고(보험료와 혼동 금지), amountManwon은 그 글자를 만원 단위 숫자로 환산하세요.
 - 사망보험금·사망 담보는 cat을 '사망', 일상생활배상책임·변호사선임비용·교통사고처리지원금은 cat을 '배상책임'으로 하세요.
@@ -2716,6 +2764,7 @@ ${FILE_PARSE_SCHEMA}` });
         return {
           cat: r.cat || "기타", name: r.name || "", amount: r.amount || (manwon ? manwon.toLocaleString() + "만원" : ""),
           kind: kinds.includes(r.kind) ? r.kind : riderKind(r), amountCheck: check,
+          std: STD_RIDER_NAMES.includes(r.std) ? r.std : "",
           id: `${prefix}_${idx}_r_${i}`, amountManwon: manwon, riderPrem: r.riderPrem || "",
           reductionPeriod: r.reductionPeriod || "", reductionAmount: r.reductionAmount || "",
           checked: true
