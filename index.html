@@ -226,16 +226,9 @@
         <!-- TAB 3: Basic Info Editor -->
         <div id="tab-basic" class="tab-pane hidden space-y-4">
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
-            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">🎨 상품 모드 설정</h3>
-            <div class="grid grid-cols-2 gap-2.5">
-              <div class="col-span-2">
-                <label class="text-[11px] text-slate-400 block mb-1">가이드 모드 선택</label>
-                <select id="inpMode" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white">
-                  <option value="adult">🧑 성인 종합 / 암 / 간병 모드</option>
-                  <option value="child">👶 태아 / 어린이 보험 모드</option>
-                </select>
-              </div>
-            </div>
+            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">🎨 리포트 테마 <span class="font-medium text-slate-400">(고객 화면 색상 · 하나만 선택)</span></h3>
+            <input type="hidden" id="inpTheme" value="default" />
+            <div id="themePicker" class="grid grid-cols-2 gap-2"></div>
           </div>
 
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
@@ -307,11 +300,6 @@
             </div>
           </div>
 
-          <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
-            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">🎨 리포트 테마 <span class="font-medium text-slate-400">(고객 화면 색상 · 하나만 선택)</span></h3>
-            <input type="hidden" id="inpTheme" value="default" />
-            <div id="themePicker" class="grid grid-cols-2 gap-2"></div>
-          </div>
 
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
             <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">💼 담당 설계사 정보 (브라우저에 자동 기억됨)</h3>
@@ -2438,7 +2426,6 @@
     });
 
     function syncDataToInputs() {
-      document.getElementById("inpMode").value = currentData.mode || "adult";
       document.getElementById("inpClientName").value = currentData.clientName || "";
       document.getElementById("inpInsuredName").value = currentData.insuredName || "";
       document.getElementById("inpProductName").value = currentData.productName || "";
@@ -2478,7 +2465,6 @@
     }
 
     function syncInputsToData() {
-      currentData.mode = document.getElementById("inpMode").value;
       currentData.brandShort = "IMC";
       currentData.clientName = document.getElementById("inpClientName").value;
       currentData.insuredName = document.getElementById("inpInsuredName").value;
@@ -3226,7 +3212,6 @@ ${rawText || "없음"}
 
 반드시 아래 JSON 구조로만 응답하세요:
 {
-  "mode": "child 또는 adult",
   "productName": "메인 상품명 또는 리모델링 플랜명",
   "targetDate": "YYYY-MM-DD 형식의 상령일/출생예정일 (모르면 빈 문자열)",
   "targetLabel": "상령일 또는 출생예정일",
