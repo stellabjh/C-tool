@@ -298,7 +298,7 @@
 
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
             <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">💰 다섯 친구 · 소득 기준 필요 보장 (단위: 만원)</h3>
-            <p class="text-[11px] text-slate-400 leading-relaxed">직업군이나 연소득을 입력하면 고객 리포트에 병원비·생활비·부양비·법률배상·유동자산 필요 금액이 표시됩니다. 비워 두면 표시하지 않습니다.</p>
+            <p class="text-[11px] text-slate-400 leading-relaxed">기본값은 근로소득자 · 연소득 5,000만원입니다. 고객 리포트에 병원비·생활비·부양비·법률배상·유동자산 필요 금액이 표시됩니다. 직업군을 '선택 안 함'으로 하고 연소득을 비우면 표시하지 않습니다.</p>
             <div class="grid grid-cols-2 gap-2.5">
               <div>
                 <label class="text-[11px] text-slate-400 block mb-1">직업군</label>
@@ -314,14 +314,6 @@
               <div>
                 <label class="text-[11px] text-slate-400 block mb-1">연소득 (비우면 직업군 기본값)</label>
                 <input id="inpIncome" type="number" min="0" step="100" placeholder="예: 6000" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
-              </div>
-              <div>
-                <label class="text-[11px] text-slate-400 block mb-1">배우자 연소득</label>
-                <input id="inpSpouseIncome" type="number" min="0" step="100" placeholder="없으면 비워두세요" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
-              </div>
-              <div>
-                <label class="text-[11px] text-slate-400 block mb-1">자녀 수</label>
-                <input id="inpChildren" type="number" min="0" step="1" placeholder="0" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
               </div>
             </div>
           </div>
@@ -417,7 +409,7 @@
       agentPhone: localStorage.getItem("SAVED_AGENT_PHONE") || "",
       agentOrg: localStorage.getItem("SAVED_AGENT_ORG") || "",
       agentComment: "",
-      profile: { jobType: "", income: "", spouseIncome: "", childCount: "" },
+      profile: { jobType: "근로소득자", income: "5000" },
       heroMetrics: [],
       analysisMetrics: [],
       gapAnalysis: [],
@@ -889,8 +881,6 @@
       const companies = Object.keys(byCompany);
       const cName = DATA.clientName || "고객";
       const pName = DATA.productName || "맞춤 보장 설계안";
-      const picks = ["일반암", "뇌혈관", "허혈", "입원"].map((k) => rows.find((r) => r.cat.key === k)).filter(Boolean);
-      const hasContracts = existingList.length + proposedList.length > 0;
       const summaryHtml = `
         <div class="space-y-3">
           <div class="flex items-center justify-between gap-2">
@@ -913,18 +903,6 @@
             <div class="rounded-xl bg-slate-950/60 border border-slate-800 p-3"><p class="text-[10px] text-slate-400">월 보험료 합계</p><p class="text-base font-black text-teal-300">${won(exPrem + prPrem)}</p></div>
             <div class="rounded-xl bg-slate-950/60 border border-slate-800 p-3"><p class="text-[10px] text-slate-400">선택 담보 / 보험사</p><p class="text-base font-black text-white">${riderCnt}개 <span class="text-xs font-bold text-slate-300">/ ${companies.length}개사</span></p></div>
           </div>
-          ${hasContracts ? `
-            <div class="space-y-1.5">
-              <p class="text-[11px] font-bold text-slate-300">핵심 보장 (선택한 계약 합산)</p>
-              <div class="grid grid-cols-2 gap-2">
-                ${picks.map((r) => `
-                  <div class="rounded-xl bg-white/10 border border-white/10 p-3">
-                    <p class="text-[10px] font-bold text-teal-300">${esc(r.cat.label)}</p>
-                    <p class="text-sm font-black text-white mt-0.5">${fmt(r.total)}</p>
-                    <p class="text-[11px] text-slate-300 mt-0.5 leading-snug">기존 ${fmt(r.ex)} + 신규 ${r.pr > 0 ? fmt(r.pr) : "-"} · ${LIGHT[r.j.color].emoji} ${r.j.text}</p>
-                  </div>`).join("")}
-              </div>
-            </div>` : ""}
           ${companies.length ? `
             <div class="space-y-1">
               <p class="text-[11px] font-bold text-slate-300">보험사별 월 보험료</p>
@@ -1774,8 +1752,8 @@
       const pf = currentData.profile || {};
       document.getElementById("inpJobType").value = pf.jobType || "";
       document.getElementById("inpIncome").value = pf.income ?? "";
-      document.getElementById("inpSpouseIncome").value = pf.spouseIncome ?? "";
-      document.getElementById("inpChildren").value = pf.childCount ?? "";
+      // 배우자 연소득·자녀 수 입력은 없앴으므로, 예전 기록에 남아 있어도 이어받지 않습니다.
+      currentData.profile = { jobType: pf.jobType || "", income: pf.income ?? "" };
 
       const sp = currentData.scriptPrompts || {};
       document.getElementById("scriptPrompt1").value = sp.p1 || "";
@@ -1817,9 +1795,7 @@
 
       currentData.profile = {
         jobType: document.getElementById("inpJobType").value,
-        income: document.getElementById("inpIncome").value,
-        spouseIncome: document.getElementById("inpSpouseIncome").value,
-        childCount: document.getElementById("inpChildren").value
+        income: document.getElementById("inpIncome").value
       };
 
       currentData.scriptPrompts = {
@@ -2472,7 +2448,7 @@ ${FILE_PARSE_SCHEMA}` });
         statusText.textContent = "2/2단계: 부족 보장·시나리오·상담 대사 분석 중...";
         const prompts = currentData.scriptPrompts;
         const synthPrompt = `당신은 대한민국 최고의 보험 상품 분석가이자 정밀 보장분석·리모델링 전문가입니다.
-아래는 고객 서류에서 이미 추출한 기존 계약과 신규 제안 계약입니다. 이를 근거로 고객용 리포트 요약과 5대 실전 제안 대사를 작성하세요. 계약 정보 자체는 다시 쓰지 마세요. 부족 보장 진단, 신호등(다섯 친구 포함), 핵심 보장 금액, 시나리오별 예상 수령액은 화면에서 계약 금액으로 직접 계산하므로 금액을 쓰지 마세요. 시나리오는 상황만 정하고, 그 상황에서 지급되는 담보를 위 계약 목록의 id(각 담보 맨 앞 값)로 가리키세요. 계약에 없는 담보는 넣지 마세요.
+아래는 고객 서류에서 이미 추출한 기존 계약과 신규 제안 계약입니다. 이를 근거로 고객용 리포트 요약과 5대 실전 제안 대사를 작성하세요. 계약 정보 자체는 다시 쓰지 마세요. 부족 보장 진단, 신호등(다섯 친구 포함), 시나리오별 예상 수령액은 화면에서 계약 금액으로 직접 계산하므로 금액을 쓰지 마세요. 시나리오는 상황만 정하고, 그 상황에서 지급되는 담보를 위 계약 목록의 id(각 담보 맨 앞 값)로 가리키세요. 계약에 없는 담보는 넣지 마세요.
 
 [고객] ${merged.customer.name || "미상"} (피보험자 ${merged.customer.insuredName || "미상"}, ${merged.customer.birth || "나이 미상"})
 [기존 계약] ${JSON.stringify(compactContracts(merged.existingContracts))}
@@ -2517,6 +2493,7 @@ ${rawText || "없음"}
 
         const savedAgent = { name: currentData.agentName, phone: currentData.agentPhone, org: currentData.agentOrg };
         const savedPrompts = currentData.scriptPrompts;
+        const savedProfile = currentData.profile;
 
         currentData = Object.assign({}, EMPTY_DATA, synth);
         currentData.id = "REC_" + Date.now();
@@ -2534,6 +2511,7 @@ ${rawText || "없음"}
         if (savedAgent.phone) currentData.agentPhone = savedAgent.phone;
         if (savedAgent.org) currentData.agentOrg = savedAgent.org;
         if (savedPrompts) currentData.scriptPrompts = savedPrompts;
+        if (savedProfile) currentData.profile = savedProfile;
 
         saveToHistory(currentData);
         syncDataToInputs();
