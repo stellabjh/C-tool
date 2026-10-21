@@ -1026,7 +1026,22 @@
       const death = ridersOf((s) => s.includes("사망"));
       const general = death.filter((r) => !/재해|상해|교통/.test(String(r.cat) + " " + String(r.name)));
       const deathAmt = general.length ? general.reduce((s, r) => s + amountOf(r), 0) : death.reduce((m, r) => Math.max(m, amountOf(r)), 0);
-      const legalCount = ridersOf((s) => /배상|변호사|교통사고처리/.test(s)).length;
+      // 법률배상: 아래 네 가지 중 가입금액이 있는 것이 2개 이상이면 '준비', 아니면 '미비'
+      const LEGAL_ITEMS = [
+        { label: "벌금", test: (s) => /벌금/.test(s) },
+        { label: "교통사고처리지원금", test: (s) => /교통사고처리지원금/.test(s) },
+        { label: "변호사선임비용", test: (s) => /변호사선임비용/.test(s) },
+        { label: "가족·일상생활 배상책임", test: (s) => /가족|일상|자녀.*배상/.test(s) }
+      ];
+      const legalItems = LEGAL_ITEMS.map((it) => {
+        let amount = 0;
+        [existingList, proposedList].forEach((list) => list.forEach((c) => {
+          if (!c.checked) return;
+          (c.riders || []).forEach((r) => { if (r.checked && it.test(String(r.name || ""))) amount += amountOf(r); });
+        }));
+        return { label: it.label, amount, has: amount > 0 };
+      });
+      const legalCount = legalItems.filter((x) => x.has).length;
 
       return friends.map((f) => {
         let current = null, status, basis;
@@ -1044,14 +1059,14 @@
           basis = death.length ? "사망 담보 합계 기준" : "서류에서 사망 담보를 찾지 못했습니다";
         } else if (f.key === "legal") {
           current = legalCount;
-          status = legalCount > 0 ? { color: "green", text: "가입" } : { color: "red", text: "미가입" };
-          basis = "배상책임·변호사선임 담보 가입 여부 기준";
+          status = legalCount >= 2 ? { color: "green", text: "준비" } : { color: "red", text: "미비" };
+          basis = "벌금 · 교통사고처리지원금 · 변호사선임비용 · 가족·일상생활 배상 중 2개 이상 가입하면 준비";
         } else {
           status = { color: "gray", text: "미정보" };
           basis = "보험 서류로는 확인할 수 없는 항목입니다 (예금·적금 등은 별도 확인)";
         }
         const pct = f.value > 0 && f.key !== "legal" && current !== null ? Math.round((current / f.value) * 100) : null;
-        return Object.assign({}, f, { current, status, pct, basis });
+        return Object.assign({}, f, { current, status, pct, basis }, f.key === "legal" ? { legalItems } : {});
       });
     }
 
@@ -1063,7 +1078,7 @@
       const rowsAll = computeCoverage(all(existing), all(proposed), rec, toManwon);
       const lines = rowsAll.map((r) => `${r.cat.label}: 기존 ${f(r.ex)} + 신규 ${f(r.pr)} = 합산 ${f(r.total)} / 권장 ${f(r.rec)} → ${r.j.text}`);
       const signals = computeFriendSignals(profile, rowsAll, all(existing), all(proposed), toManwon)
-        .map((s) => `${s.order} ${s.label}: 필요 ${s.value === null ? "시장가격" : f(s.value)} / 현재 ${s.current === null ? "확인 불가" : (s.key === "legal" ? s.current + "건" : f(s.current))} → ${s.status.text}`);
+        .map((s) => `${s.order} ${s.label}: 필요 ${s.value === null ? "시장가격" : f(s.value)} / 현재 ${s.current === null ? "확인 불가" : (s.key === "legal" ? s.current + "/4개" : f(s.current))} → ${s.status.text}`);
       return lines.concat(signals.length ? ["[다섯 친구 신호등 · 소득 기준 필요 보장 대비 현재 준비]"].concat(signals) : []).join("\n");
     }
 
@@ -1226,7 +1241,7 @@
                   <span class="px-1.5 rounded text-[9px] font-extrabold border ${LIGHT[s.status.color].chip}">${s.status.text}</span>
                 </div>
                 <p class="text-[11px] font-extrabold flex items-center gap-1 leading-tight mt-0.5"><span class="w-2 h-2 rounded-full shrink-0 ${LIGHT[s.status.color].dot}"></span>${esc(s.label)}</p>
-                <p class="text-[10px] leading-tight mt-0.5"><span class="font-black text-slate-800">${s.current === null ? "-" : (s.key === "legal" ? (s.current > 0 ? s.current + "건 가입" : "미가입") : (s.key === "hospital" || s.key === "living") && s.current <= 0 ? "0원" : fmt(s.current))}</span><span class="opacity-60"> / ${s.value === null ? "시장가격" : fmt(s.value)}</span></p>
+                <p class="text-[10px] leading-tight mt-0.5"><span class="font-black text-slate-800">${s.current === null ? "-" : (s.key === "legal" ? s.current + "/4 가입" : (s.key === "hospital" || s.key === "living") && s.current <= 0 ? "0원" : fmt(s.current))}</span><span class="opacity-60"> / ${s.value === null ? "시장가격" : fmt(s.value)}</span></p>
                 ${s.pct === null ? "" : `<div class="w-full bg-white/70 rounded-full h-1 overflow-hidden mt-1"><div class="${LIGHT[s.status.color].bar} h-1 rounded-full" style="width:${Math.min(100, s.pct)}%"></div></div>`}
               </div>`).join("")}
           </div>
@@ -1308,7 +1323,14 @@
         if (key === "hospital") return catRows(["일반암", "뇌혈관", "허혈", "유사암", "수술", "골절"]);
         if (key === "living") return catRows(["입원", "1인실"]);
         if (key === "support") return listOrNone(ridersWhere((s) => s.includes("사망")), "가입한 사망 담보가 없습니다");
-        if (key === "legal") return listOrNone(ridersWhere((s) => /배상|변호사|교통사고처리/.test(s)), "가입한 배상책임 담보가 없습니다");
+        if (key === "legal") {
+          const sig = signalsEx.find((x) => x.key === "legal");
+          return (sig && sig.legalItems ? sig.legalItems : []).map((it) => `
+            <div class="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80 flex items-center justify-between gap-2">
+              <span class="min-w-0 truncate text-[11px] font-bold text-slate-800 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full shrink-0 ${it.has ? "bg-emerald-500" : "bg-rose-500"}"></span>${esc(it.label)}</span>
+              <span class="text-[11px] font-black shrink-0 ${it.has ? "text-slate-900" : "text-slate-400"}">${it.has ? fmt(it.amount) : "미가입"}</span>
+            </div>`).join("");
+        }
         return "";
       };
       const friendDiagHtml = signalsEx.length === 0 ? "" : `
@@ -1326,7 +1348,7 @@
                   <div class="flex items-center justify-between gap-2">
                     <span class="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 min-w-0"><span class="w-2.5 h-2.5 rounded-full shrink-0 ${LIGHT[s.status.color].dot}"></span><span class="truncate"><span class="text-[9px] font-bold text-slate-400">${esc(s.order)}</span> ${esc(s.label)}</span></span>
                     <span class="flex items-center gap-1.5 shrink-0">
-                      <span class="text-xs font-black text-slate-900">${s.current === null ? "-" : (s.key === "legal" ? (s.current > 0 ? s.current + "건 가입" : "미가입") : (s.key === "hospital" || s.key === "living") && s.current <= 0 ? "0원" : fmt(s.current))}</span>
+                      <span class="text-xs font-black text-slate-900">${s.current === null ? "-" : (s.key === "legal" ? s.current + "/4 가입" : (s.key === "hospital" || s.key === "living") && s.current <= 0 ? "0원" : fmt(s.current))}</span>
                       <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${LIGHT[s.status.color].chip}">${s.status.text}</span>
                     </span>
                   </div>
