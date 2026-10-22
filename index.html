@@ -79,7 +79,7 @@
           1. 서류 AI 분석
         </button>
         <button data-tab="tab-scripts" class="builder-tab py-2 rounded-lg text-xs font-bold text-amber-400 hover:text-white transition flex items-center justify-center gap-1">
-          <span>🔒</span> 2. 제안 대사(5종)
+          <span>🔒</span> 2. 제안 화법(5종)
         </button>
         <button data-tab="tab-basic" class="builder-tab py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition">
           3. 기본 정보
@@ -148,7 +148,7 @@
         <div id="tab-scripts" class="tab-pane hidden space-y-4">
           <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-1.5">
             <h3 class="text-xs font-extrabold text-amber-300 flex items-center gap-1.5">
-              <span>🔒</span> 설계사님 전용 시크릿 제안 대사 (고객에게 절대 노출되지 않음)
+              <span>🔒</span> 설계사님 전용 시크릿 제안 화법 (고객에게 절대 노출되지 않음)
             </h3>
             <p class="text-[11px] text-amber-200/80 leading-relaxed">
               분석된 부족 보장 결과, 전/후 비교 우위, 감액기간 안내까지 반영하여 AI가 최적의 상담 화법을 작성합니다.
@@ -157,7 +157,7 @@
 
           <div class="flex justify-end">
             <button id="btnRegenerateScripts" class="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold border border-amber-500/40 transition flex items-center gap-1.5 shadow">
-              <span>⚡</span> 대사 5종 모두 다시 생성
+              <span>⚡</span> 화법 5종 모두 다시 생성
             </button>
           </div>
 
@@ -166,12 +166,12 @@
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-bold text-teal-400 shrink-0">상황 1</span>
               <input id="scriptPrompt1" type="text" placeholder="상황을 입력하세요 (예: 보장분석 리포트 전달 시 첫 안내)" class="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-teal-500" />
-              <button onclick="regenerateScripts(1)" title="분석은 그대로 두고 이 상황의 대사만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
+              <button onclick="regenerateScripts(1)" title="분석은 그대로 두고 이 상황의 화법만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
               <button onclick="copyScript('scriptBox1')" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-[11px] text-slate-200 font-semibold transition shrink-0">
                 📋 복사
               </button>
             </div>
-            <textarea id="scriptBox1" rows="4" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 leading-relaxed focus:outline-none focus:border-teal-500" placeholder="AI가 상황 1에 맞는 실전 대사를 작성합니다..."></textarea>
+            <textarea id="scriptBox1" rows="4" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 leading-relaxed focus:outline-none focus:border-teal-500" placeholder="AI가 상황 1에 맞는 실전 화법을 작성합니다..."></textarea>
           </div>
 
           <!-- Script Card 2 -->
@@ -179,12 +179,12 @@
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-bold text-rose-400 shrink-0">상황 2</span>
               <input id="scriptPrompt2" type="text" placeholder="상황을 입력하세요 (예: 기존 보험 대비 신규 플랜의 보완 효과를 설득할 때)" class="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-rose-500" />
-              <button onclick="regenerateScripts(2)" title="분석은 그대로 두고 이 상황의 대사만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
+              <button onclick="regenerateScripts(2)" title="분석은 그대로 두고 이 상황의 화법만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
               <button onclick="copyScript('scriptBox2')" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-[11px] text-slate-200 font-semibold transition shrink-0">
                 📋 복사
               </button>
             </div>
-            <textarea id="scriptBox2" rows="4" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 leading-relaxed focus:outline-none focus:border-rose-500" placeholder="AI가 상황 2에 맞는 실전 대사를 작성합니다..."></textarea>
+            <textarea id="scriptBox2" rows="4" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 leading-relaxed focus:outline-none focus:border-rose-500" placeholder="AI가 상황 2에 맞는 실전 화법을 작성합니다..."></textarea>
           </div>
 
           <!-- Script Card 3 -->
@@ -192,12 +192,12 @@
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-bold text-emerald-400 shrink-0">상황 3</span>
               <input id="scriptPrompt3" type="text" placeholder="상황을 입력하세요 (예: 타사 대비 보장 범위 및 감액기간 우위를 설명할 때)" class="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-500" />
-              <button onclick="regenerateScripts(3)" title="분석은 그대로 두고 이 상황의 대사만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
+              <button onclick="regenerateScripts(3)" title="분석은 그대로 두고 이 상황의 화법만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
               <button onclick="copyScript('scriptBox3')" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-[11px] text-slate-200 font-semibold transition shrink-0">
                 📋 복사
               </button>
             </div>
-            <textarea id="scriptBox3" rows="4" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 leading-relaxed focus:outline-none focus:border-emerald-500" placeholder="AI가 상황 3에 맞는 실전 대사를 작성합니다..."></textarea>
+            <textarea id="scriptBox3" rows="4" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 leading-relaxed focus:outline-none focus:border-emerald-500" placeholder="AI가 상황 3에 맞는 실전 화법을 작성합니다..."></textarea>
           </div>
 
           <!-- Script Card 4 -->
@@ -205,12 +205,12 @@
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-bold text-teal-300 shrink-0">상황 4</span>
               <input id="scriptPrompt4" type="text" placeholder="상황을 입력하세요 (예: 가족과 상의해 보겠다며 결정을 미룰 때)" class="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-teal-500" />
-              <button onclick="regenerateScripts(4)" title="분석은 그대로 두고 이 상황의 대사만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
+              <button onclick="regenerateScripts(4)" title="분석은 그대로 두고 이 상황의 화법만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
               <button onclick="copyScript('scriptBox4')" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-[11px] text-slate-200 font-semibold transition shrink-0">
                 📋 복사
               </button>
             </div>
-            <textarea id="scriptBox4" rows="4" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 leading-relaxed focus:outline-none focus:border-teal-500" placeholder="AI가 상황 4에 맞는 실전 대사를 작성합니다..."></textarea>
+            <textarea id="scriptBox4" rows="4" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 leading-relaxed focus:outline-none focus:border-teal-500" placeholder="AI가 상황 4에 맞는 실전 화법을 작성합니다..."></textarea>
           </div>
 
           <!-- Script Card 5 -->
@@ -218,12 +218,12 @@
             <div class="flex items-center justify-between gap-2">
               <span class="text-xs font-bold text-amber-300 shrink-0">상황 5</span>
               <input id="scriptPrompt5" type="text" placeholder="상황을 입력하세요 (예: 면책/감액기간 하루라도 빨리 넘기기 위해 당일 클로징)" class="flex-1 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400" />
-              <button onclick="regenerateScripts(5)" title="분석은 그대로 두고 이 상황의 대사만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
+              <button onclick="regenerateScripts(5)" title="분석은 그대로 두고 이 상황의 화법만 다시 만듭니다" class="regen-btn px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-[11px] text-amber-300 font-semibold border border-amber-500/30 transition shrink-0">🔄 다시 생성</button>
               <button onclick="copyScript('scriptBox5')" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-[11px] text-slate-200 font-semibold transition shrink-0">
                 📋 복사
               </button>
             </div>
-            <textarea id="scriptBox5" rows="4" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 leading-relaxed focus:outline-none focus:border-amber-400" placeholder="AI가 상황 5에 맞는 실전 대사를 작성합니다..."></textarea>
+            <textarea id="scriptBox5" rows="4" class="w-full p-3 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 leading-relaxed focus:outline-none focus:border-amber-400" placeholder="AI가 상황 5에 맞는 실전 화법을 작성합니다..."></textarea>
           </div>
         </div>
 
@@ -374,7 +374,7 @@
         <button id="btnCloseHistoryModal" class="text-slate-400 hover:text-white font-bold text-sm">✕</button>
       </div>
       <p class="text-xs text-slate-400 shrink-0">
-        분석했던 고객을 클릭하면 보장분석 리포트 화면과 5대 대사가 즉시 복원됩니다.
+        분석했던 고객을 클릭하면 보장분석 리포트 화면과 5대 화법이 즉시 복원됩니다.
       </p>
       <div id="historyListContainer" class="flex-1 overflow-y-auto custom-scroll space-y-2.5 pr-1"></div>
       <div id="folderSection" class="shrink-0 border-t border-slate-800 pt-3 space-y-2 max-h-[38%] overflow-y-auto custom-scroll"></div>
@@ -389,6 +389,25 @@
 
   <!-- Master Script -->
   <script>
+    // 제안 화법을 만들 때 AI에게 함께 주는 참고 자료: 《통의보감》의 '통계·의학적 사실로 고객이 스스로 질문하게 만드는' 전환 화법.
+    // 고객 증권에 실제로 공백이 있는 담보에 해당하는 부분만 골라 쓰도록 지시합니다.
+    const TALK_REFERENCE = `[화법 참고 자료 — 《통의보감》 전환 화법의 원칙]
+■ 원칙: 설득하려 하지 말고 통계와 의학적 사실을 보여주어 고객이 스스로 질문하게 만든다. 공포 마케팅 금지. 질문형 문장으로 고객이 직접 깨닫게 한다.
+■ 4단계 틀: ① 의학적 진행 단계 설명 → ② 국가 통계 제시 → ③ 보유 증권의 보장 범위 대조 → ④ 보완 솔루션 제안.
+■ 담보별 핵심 논리 (고객 증권에 해당 공백이 실제로 있을 때만 쓰세요)
+- 암: "치료비가 아니라 생존 후 생활비의 싸움". 의료기술 발전으로 5년 상대생존율이 70%를 넘고, 암 환자 다수가 휴직·소득 감소를 겪는다는 통계 → 진단비를 병원비로 쓰고 나면 일하지 못하는 기간의 생활비는 어디서 마련하는지 질문.
+- 뇌혈관(깔때기 화법): 뇌혈관 질환은 1단계 혈관 협착/동맥류 → 2단계 막힘(뇌경색) → 3단계 터짐(뇌출혈)으로 진행. 뇌질환 환자 중 뇌출혈은 약 9~10%이고 대부분이 뇌경색 등이라는 통계. 증권이 '뇌출혈 진단비'뿐이면 가장 적은 비중만 보장하므로 범위가 가장 넓은 '뇌혈관질환 진단비'로 넓히는 것을 제안.
+- 심장: 협심증(혈관 좁아짐) → 급성심근경색(막힘·괴사) → 부정맥·심부전으로 진행. 심장질환 환자 중 협심증이 약 65~70%, 급성심근경색은 약 10%라는 통계. 증권이 '급성심근경색 진단비'뿐이면 협심증은 대상이 아닐 수 있으므로 '허혈성심장질환/심혈관질환 진단비'로 범위를 넓히는 것을 제안.
+- 치매·간병: "부모님의 고통보다 가족의 붕괴를 막는 보장". 중증 치매 평균 유병 기간 8~10년, 사설 간병비 월 350만~400만 원 안팎(1년 약 4,000만 원, 5년 약 2억 원) → 간병할 가족의 삶과 가계를 지키는 방어막으로 설명.
+- 수술비·치료비: 진단비는 최초 1회 지급 후 소멸하지만 재발·재시술이 있을 수 있다. 스텐트 등 카테터 시술이 표준이고 재협착 가능성이 있어 시술마다 반복 지급되는 수술비, 건강보험이 안 되는 고액 신의료기술 치료 담보가 이어져야 한다.
+- 혈전용해치료비: 뇌경색 골든타임 4.5시간 안의 혈전용해(tPA) 투여가 후유장해를 좌우. 병원 도착 직후 응급 처치 비용을 받치는 첫 번째 안전장치.
+- 산정특례 진단비: 산정특례로 급여 본인부담이 5%로 줄어도 비급여·간병·생활비는 지원되지 않는다. 대상이 되면 연 1회 한도로 반복 지급되는 담보는 장기 치료·재발에 대비한 대안.
+- 풀케어 통합 클로징: 응급(혈전용해치료비) → 혈관 개통 시술(스텐트·수술비 매회 지급) → 장기 치료(산정특례 진단비) 순으로 치료 여정 전체를 잇는 구조를 갖추자는 제안. 진단비는 1회성, 치료비 연계 담보는 단계마다 이어진다는 비교로 정리.
+■ 사용 규칙
+- 상황별 지시가 우선이고, 이 자료는 보조입니다. 고객 증권과 '계산된 보장 현황'에서 실제로 부족하거나 비어 있는 담보에 해당하는 항목만 골라 4단계 틀로 구성하세요. 해당하지 않는 항목은 쓰지 마세요.
+- 위 통계 수치는 참고용 교재 수치입니다. "통계에 따르면 약 ~" 처럼 근사 표현으로 쓰고 단정하거나 부풀리지 마세요. 고객 증권에 없는 담보명·금액은 지어내지 마세요(금액은 계산된 보장 현황만 사용).
+- "보험금이 한 푼도 안 나온다" 같은 단정 대신 "약관상 해당 진단명이 아니면 보장 대상이 아닐 수 있어 증권으로 함께 확인해 보겠습니다"처럼 확인 전제로 말하세요.`;
+
     const DEFAULT_PROMPTS = {
       p1: "보장분석 및 계약비교 리포트 링크를 카톡으로 전달하면서 고객의 호기심을 유발하는 첫 안내 화법",
       p2: "분석된 부족 보장 공백(뇌/심장/수술비 등)을 구체적으로 짚어주며 보완 플랜을 설득하는 반론 극복 화법",
@@ -845,15 +864,15 @@
     function copyScript(elementId) {
       const el = document.getElementById(elementId);
       if (!el.value) {
-        alert("복사할 대사가 없습니다.");
+        alert("복사할 화법이 없습니다.");
         return;
       }
       navigator.clipboard.writeText(el.value).then(() => {
-        alert("📋 대사가 복사되었습니다! 카카오톡이나 문자 창에 바로 붙여넣기(Ctrl+V) 하세요.");
+        alert("📋 화법이 복사되었습니다! 카카오톡이나 문자 창에 바로 붙여넣기(Ctrl+V) 하세요.");
       }).catch(() => {
         el.select();
         document.execCommand("copy");
-        alert("📋 대사가 복사되었습니다!");
+        alert("📋 화법이 복사되었습니다!");
       });
     }
 
@@ -890,7 +909,7 @@
 
     // =========================================================================
     // 담보별 보장 현황 계산 (기존 + 신규 합산, 권장 대비 신호등 판정).
-    // 고객 화면(renderStatusViews)과 빌더의 상담 대사 생성이 같은 숫자를 쓰도록 한 곳에서 계산합니다.
+    // 고객 화면(renderStatusViews)과 빌더의 상담 화법 생성이 같은 숫자를 쓰도록 한 곳에서 계산합니다.
     // generateClientHtml 안에 toString()으로 그대로 삽입되므로 외부 변수에 기대지 않습니다.
     // num: 금액 문자열/숫자를 만원 단위 숫자로 바꾸는 함수
     // =========================================================================
@@ -1139,7 +1158,7 @@
       return out;
     }
 
-    // 빌더 전용: 상담 대사 생성에 쓸 "계산된 보장 현황" 문장 (모든 담보를 선택한 상태 기준)
+    // 빌더 전용: 상담 화법 생성에 쓸 "계산된 보장 현황" 문장 (모든 담보를 선택한 상태 기준)
     function coverageFactsText(existing, proposed, recommended, profile) {
       const all = (list) => (list || []).map((c) => ({ ...c, checked: true, riders: (c.riders || []).map((r) => ({ ...r, checked: true })) }));
       const f = (v) => (v > 0 ? Math.round(v).toLocaleString() + "만원" : "없음");
@@ -3039,7 +3058,7 @@
       syncInputsToData();
       const hasData = (currentData.existingContracts || []).length + (currentData.proposedContracts || []).length > 0;
       if (!hasData) {
-        alert("대사를 만들 분석 결과가 없습니다.\n먼저 [1. 서류 AI 분석]에서 서류를 분석해 주세요.");
+        alert("화법을 만들 분석 결과가 없습니다.\n먼저 [1. 서류 AI 분석]에서 서류를 분석해 주세요.");
         return;
       }
       if (!(await ensureAiReady(apiKey))) return;
@@ -3058,19 +3077,21 @@
         5: prompts.p5 || "당일 결정 클로징"
       };
       const prompt = `당신은 대한민국 최고의 보험 세일즈 코치이자 실전 화법 전문가입니다.
-고객 [${cName}님]의 [${pName}] 분석 결과를 바탕으로, 설계사가 실제로 사용할 상황별 맞춤 대사를 작성하세요.
+고객 [${cName}님]의 [${pName}] 분석 결과를 바탕으로, 설계사가 실제로 사용할 상황별 맞춤 화법을 작성하세요.
 
 [계약] ${contractsText || "없음"}
 
 [계산된 보장 현황 — 금액과 부족 여부는 이 숫자만 근거로 쓰고, 다른 금액을 지어내지 마세요]
 ${gapsText || "특정 담보의 보장 한도 미달 또는 공백 확인"}
 
+${TALK_REFERENCE}
+
 [작성할 상황]
 ${keys.map(k => `상황${k}: ${situation[k]}`).join("\n")}
 
 반드시 아래 JSON 형식으로만 응답하세요:
 {
-  ${keys.map(k => `"s${k}": "상황${k} 대사"`).join(", ")}
+  ${keys.map(k => `"s${k}": "상황${k} 화법"`).join(", ")}
 }`;
 
       regenerating = true;
@@ -3082,13 +3103,13 @@ ${keys.map(k => `상황${k}: ${situation[k]}`).join("\n")}
         const parsed = await callGemini(apiKey, [{ text: prompt }]);
         const picked = {};
         keys.forEach(k => { if (typeof parsed["s" + k] === "string" && parsed["s" + k].trim()) picked["s" + k] = parsed["s" + k]; });
-        if (Object.keys(picked).length === 0) throw new Error("AI가 대사를 돌려주지 않았습니다. 다시 시도해 주세요.");
+        if (Object.keys(picked).length === 0) throw new Error("AI가 화법을 돌려주지 않았습니다. 다시 시도해 주세요.");
         currentData.scripts = Object.assign({}, currentData.scripts, picked);
         saveToHistory(currentData);
         syncDataToInputs();
-        showToast(which ? `⚡ 상황 ${which} 대사를 다시 생성했습니다.` : "⚡ 대사 5종을 다시 생성했습니다.");
+        showToast(which ? `⚡ 상황 ${which} 화법을 다시 생성했습니다.` : "⚡ 화법 5종을 다시 생성했습니다.");
       } catch (err) {
-        alert("대사 생성 중 오류가 발생했습니다: " + err.message);
+        alert("화법 생성 중 오류가 발생했습니다: " + err.message);
       } finally {
         regenerating = false;
         bulk.innerHTML = bulkText;
@@ -3287,10 +3308,10 @@ ${FILE_PARSE_SCHEMA}` });
         }
 
         // ---- 2단계: 통합 분석 (텍스트만 전송하므로 빠름) ----
-        statusText.textContent = "2/2단계: 부족 보장·상담 대사 분석 중...";
+        statusText.textContent = "2/2단계: 부족 보장·상담 화법 분석 중...";
         const prompts = currentData.scriptPrompts;
         const synthPrompt = `당신은 대한민국 최고의 보험 상품 분석가이자 정밀 보장분석·리모델링 전문가입니다.
-아래는 고객 서류에서 이미 추출한 기존 계약과 신규 제안 계약입니다. 이를 근거로 고객용 리포트 요약과 5대 실전 제안 대사를 작성하세요. 계약 정보 자체는 다시 쓰지 마세요. 부족 보장 진단, 신호등(다섯 친구 포함), 시나리오별 예상 수령액은 화면에서 계약 금액으로 직접 계산하므로 금액을 쓰지 마세요. 시나리오는 상황만 정하고, 그 상황에서 지급되는 담보를 위 계약 목록의 id(각 담보 맨 앞 값)로 가리키세요. 계약에 없는 담보는 넣지 마세요.
+아래는 고객 서류에서 이미 추출한 기존 계약과 신규 제안 계약입니다. 이를 근거로 고객용 리포트 요약과 5대 실전 제안 화법을 작성하세요. 계약 정보 자체는 다시 쓰지 마세요. 부족 보장 진단, 신호등(다섯 친구 포함), 시나리오별 예상 수령액은 화면에서 계약 금액으로 직접 계산하므로 금액을 쓰지 마세요. 시나리오는 상황만 정하고, 그 상황에서 지급되는 담보를 위 계약 목록의 id(각 담보 맨 앞 값)로 가리키세요. 계약에 없는 담보는 넣지 마세요.
 
 [고객] ${merged.customer.name || "미상"} (피보험자 ${merged.customer.insuredName || "미상"}, ${merged.customer.birth || "나이 미상"})
 [기존 계약] ${JSON.stringify(compactContracts(merged.existingContracts))}
@@ -3298,6 +3319,8 @@ ${FILE_PARSE_SCHEMA}` });
 
 [계산된 보장 현황 — 담보 금액을 합산한 결과입니다. 금액과 부족 여부는 이 숫자만 근거로 쓰고, 다른 금액을 지어내지 마세요]
 ${coverageFactsText(merged.existingContracts, merged.proposedContracts, currentData.recommended, currentData.profile)}
+
+${TALK_REFERENCE}
 
 [설계사가 지정한 5가지 실전 상담 상황]
 상황1: ${prompts.p1 || "첫 안내 멘트"}
@@ -3363,7 +3386,7 @@ ${rawText || "없음"}
         const total = ((performance.now() - t0) / 1000).toFixed(1);
         let msg = `✨ 분석 완료 (${total}초)\n- 읽은 파일 ${okItems.length}/${items.length}개 · 기존 ${merged.existingContracts.length}건 / 신규 ${merged.proposedContracts.length}건`;
         if (failed.length) msg += `\n⚠️ 읽지 못한 파일: ${failed.map(f => f.file?.name).join(", ")}`;
-        if (synthError) msg += `\n⚠️ 부족보장·대사 생성은 실패했습니다(${synthError}). 계약·담보 표는 정상 반영되었으니 [제안 대사] 탭의 일괄 생성 버튼으로 다시 시도해 주세요.`;
+        if (synthError) msg += `\n⚠️ 부족보장·화법 생성은 실패했습니다(${synthError}). 계약·담보 표는 정상 반영되었으니 [제안 화법] 탭의 일괄 생성 버튼으로 다시 시도해 주세요.`;
         msg += "\n\n우측 미리보기의 [🚦 보장분석신호등] 탭을 확인해 보세요.";
         alert(msg);
       } catch (err) {
