@@ -2660,6 +2660,13 @@
         currentData.agentOrg = localStorage.getItem("SAVED_AGENT_ORG") || "";
         currentData.scriptPrompts = { p1: savedP1, p2: savedP2, p3: savedP3, p4: savedP4, p5: savedP5 };
 
+        // 올렸던 파일과 입력한 요청 문구, 진행 표시도 함께 비웁니다. (읽는 중이던 파일의 결과는 버려집니다)
+        uploadedFiles = [];
+        document.getElementById("fileInput").value = "";
+        document.getElementById("rawTextInput").value = "";
+        document.getElementById("aiStatusBox").classList.add("hidden");
+        renderFileList();
+
         syncDataToInputs();
         renderPreview();
       }
