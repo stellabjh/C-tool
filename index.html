@@ -1320,14 +1320,50 @@
           '<span class="block text-[10px] ' + (on ? "text-slate-300" : "text-slate-400") + '">' + esc(g.period) + "</span></button>";
       }).join("");
 
-      let html = '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
+      // 고객 가입 세대 확인 칸: 계약일로 계산한 세대를 가장 먼저, 크게 보여줍니다.
+      const META = { pre: ["1세대", 0], s1: ["2세대", 0], s2: ["2세대", 15], s3: ["2세대", 15], good: ["3세대", 15], g4: ["4세대", 5], g5: ["5세대", 5] };
+      const now = new Date(), nowM = now.getFullYear() * 12 + now.getMonth();
+      const ymOf = (txt) => { const m = String(txt || "").match(/((?:19|20)\d{2})\D{0,3}(\d{1,2})/); return m ? { y: +m[1], mo: +m[2] } : null; };
+      const since = (txt) => {
+        const d = ymOf(txt);
+        if (!d) return "";
+        const diff = nowM - (d.y * 12 + d.mo - 1);
+        if (diff < 0) return "";
+        const yy = Math.floor(diff / 12), mm = diff % 12;
+        return "가입 후 약 " + (yy ? yy + "년 " : "") + (mm || !yy ? mm + "개월" : "");
+      };
+      const nextRejoin = (txt, cycle) => {
+        const d = ymOf(txt);
+        if (!d || !cycle) return "";
+        let y = d.y + cycle;
+        while (y * 12 + d.mo - 1 < nowM) y += cycle;
+        return "다음 재가입(재심사) 시기 약 " + y + "년 " + d.mo + "월 · " + cycle + "년 주기";
+      };
+      let box = '<div class="rounded-2xl border-2 border-teal-500 bg-teal-50 p-4 space-y-2.5 shadow-sm">' +
+        '<p class="text-[11px] font-extrabold text-teal-700">🏥 고객 실손의료비 가입 세대</p>';
+      if (found.length) {
+        box += found.map((f, i) => {
+          const k = (i === 0 && forced) ? forced : f.key, g = k ? byKey(k) : null;
+          const meta = k ? META[k] : null;
+          const label = (g ? '<span class="text-2xl font-black text-slate-900">' + meta[0] + ' 실손</span> <span class="text-sm font-bold text-teal-700">(' + (g.name.indexOf(meta[0]) === 0 ? "" : esc(g.name) + " · ") + esc(g.period) + ")</span>"
+            : '<span class="text-base font-extrabold text-slate-700">세대를 판별하지 못했습니다 — 계약일 확인이 필요합니다</span>');
+          const info = [(f.company + " " + f.product).trim(), f.date ? "가입일 " + f.date : "가입일 미확인", since(f.date)].filter(Boolean).map(esc).join(" · ");
+          const rj = meta ? nextRejoin(f.date, meta[1]) : "";
+          return '<div class="rounded-xl bg-white border border-teal-200 px-3 py-2.5 space-y-1"><div>' + label + (i === 0 && forced ? ' <span class="text-[10px] font-bold text-amber-700 bg-amber-100 rounded px-1.5 py-0.5">설계사 지정</span>' : "") + "</div>" +
+            '<p class="text-[11px] text-slate-600">' + info + "</p>" + (rj ? '<p class="text-[11px] text-slate-500">' + esc(rj) + "</p>" : "") + "</div>";
+        }).join("");
+      } else if (forced) {
+        const g = byKey(forced);
+        box += '<div class="rounded-xl bg-white border border-teal-200 px-3 py-2.5"><span class="text-2xl font-black text-slate-900">' + META[forced][0] + ' 실손</span> <span class="text-sm font-bold text-teal-700">(' + (g.name.indexOf(META[forced][0]) === 0 ? "" : esc(g.name) + " · ") + esc(g.period) + ')</span> <span class="text-[10px] font-bold text-amber-700 bg-amber-100 rounded px-1.5 py-0.5">설계사 지정</span></div>';
+      } else {
+        box += '<div class="rounded-xl bg-white border border-teal-200 px-3 py-3 text-xs text-slate-600">서류에서 실손의료비 계약을 찾지 못했습니다. 실손 계약의 증권을 올리면 가입일로 세대를 자동 계산해 보여드립니다.</div>';
+      }
+      box += "</div>";
+
+      let html = box + '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
         '<div><h2 class="text-sm font-extrabold text-slate-900">🏥 실손의료비 세대 분석</h2>' +
         '<p class="text-[11px] text-slate-500 mt-0.5">가입 세대를 확인하고, 최신 5세대 실손으로 바꾸면 무엇이 달라지는지 살펴봅니다.</p></div>' +
         '<div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">' + chips + "</div>";
-      if (found.length) {
-        html += '<div class="rounded-xl bg-teal-50 border border-teal-200 px-3 py-2 text-[11px] text-teal-900">' +
-          found.map((f) => "· " + esc((f.company + " " + f.product).trim()) + " — " + (f.date ? "계약일 " + esc(f.date) : "계약일 미확인") + (f.key ? " → <b>" + esc(byKey(f.key).name) + "</b>" : "")).join("<br>") + "</div>";
-      }
       html += "</div>";
 
       if (!cur) {
