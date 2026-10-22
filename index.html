@@ -1883,7 +1883,7 @@
       background: #f8fafc;
     }
     @media (min-width: 900px) {
-      .mobile-shell { max-width: 1120px; box-shadow: none; }
+      .mobile-shell:not(.force-phone) { max-width: 1120px; box-shadow: none; }
     }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -1918,6 +1918,9 @@
       <div class="flex items-center gap-1.5 shrink-0">
         <button onclick="window.print()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-200 border border-slate-700 transition flex items-center gap-1">
           <span>🖨️</span> 인쇄/PDF
+        </button>
+        <button id="btnToggleShell" class="hidden min-[900px]:flex px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-teal-200 border border-slate-700 transition items-center gap-1" title="컴퓨터에서 폰 화면 폭으로 미리 봅니다 (기본은 자동)">
+          <span>📱</span> 화면전환
         </button>
       </div>
     </div>
@@ -2441,6 +2444,10 @@
         paint();
       });
     })();
+
+    document.getElementById("btnToggleShell").addEventListener("click", () => {
+      document.getElementById("mainShell").classList.toggle("force-phone");
+    });
 
     document.getElementById("btnOpenDocsModal").addEventListener("click", () => {
       const m = document.getElementById("docsModal");
