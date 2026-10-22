@@ -62,7 +62,7 @@
         🗑️ 화면 비우기
       </button>
       <button id="btnDownloadClientHtml" class="px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-teal-500/20 transition flex items-center gap-1.5">
-        <span>📥</span> 고객용 리포트 다운로드
+        <span>📥</span> 고객용 한눈에 보장 다운로드
       </button>
     </div>
   </header>
@@ -433,7 +433,7 @@
       profile: { jobType: "근로소득자", income: "5000" },
       heroMetrics: [],
       includeTabs: { status: true, contracts: true, silson: true, compare: true },
-      includeSections: { silsonTable: true },
+      includeSections: { silsonTable: true, silsonMine: true, silsonSwitch: true, silsonCompare: true },
       silson: { generation: "auto" },
       theme: "default",
       analysisMetrics: [],
@@ -1315,11 +1315,15 @@
       if (!root.__bound) {
         root.__bound = true;
         root.addEventListener("click", (e) => {
-          if (e.target.closest("[data-silson-toggle]")) {
+          const tg = e.target.closest("[data-silson-toggle]");
+          if (tg) {
             e.preventDefault();
-            const was = window.__silsonTableOn !== undefined ? window.__silsonTableOn : !(DATA && DATA.includeSections && DATA.includeSections.silsonTable === false);
-            window.__silsonTableOn = !was;
-            window.parent.postMessage({ type: "includeSections", value: { silsonTable: !was } }, "*");
+            const k = tg.getAttribute("data-silson-toggle");
+            window.__silsonSecs = window.__silsonSecs || {};
+            const was = window.__silsonSecs[k] !== undefined ? window.__silsonSecs[k] : !(DATA && DATA.includeSections && DATA.includeSections[k] === false);
+            window.__silsonSecs[k] = !was;
+            const val = {}; val[k] = !was;
+            window.parent.postMessage({ type: "includeSections", value: val }, "*");
             renderSilsonView(DATA, existingList, window.__silsonSel);
             return;
           }
@@ -1377,23 +1381,18 @@
       }
       box += "</div>";
 
-      // '실손의료비 세대 분석표'(위 가입 세대 칸을 뺀 아래 전체)를 고객 리포트·인쇄/PDF에 넣을지 고르는 체크박스(미리보기에서만 보임)
+      // 구역별 체크박스(미리보기에서만 보임): 체크를 끄면 그 구역이 고객 리포트·인쇄/PDF에서 빠집니다.
       const edit = typeof EDIT_MODE !== "undefined" && EDIT_MODE;
-      const tableOn = window.__silsonTableOn !== undefined ? window.__silsonTableOn : !(DATA && DATA.includeSections && DATA.includeSections.silsonTable === false);
-      const bar = edit ? '<label class="no-print flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 cursor-pointer select-none">' +
-        '<span role="checkbox" data-silson-toggle="1" aria-checked="' + tableOn + '" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;border:1.5px solid #0d9488;font-size:11px;font-weight:900;line-height:1;color:#fff;background:' + (tableOn ? "#0d9488" : "transparent") + '">' + (tableOn ? "✓" : "") + "</span>" +
-        '<span class="text-xs font-extrabold text-slate-800">실손의료비 세대 분석표</span>' +
-        '<span class="text-[10px] text-slate-500">' + (tableOn ? "고객 리포트와 인쇄/PDF에 포함됩니다" : "고객 리포트와 인쇄/PDF에서 제외됩니다") + "</span></label>" : "";
-      const show = (inner) => {
-        root.innerHTML = box + bar + '<div id="silsonAnalysis" class="space-y-4">' + inner + "</div>";
-        if (tableOn) root.removeAttribute("data-off"); else root.setAttribute("data-off", "1");
-        if (edit) root.setAttribute("data-edit", "1");
-      };
-      let html = '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
-        '<div><h2 class="text-sm font-extrabold text-slate-900">🏥 실손의료비 세대 분석</h2>' +
+      const secOn = (k) => (window.__silsonSecs && window.__silsonSecs[k] !== undefined) ? window.__silsonSecs[k] : !(DATA && DATA.includeSections && DATA.includeSections[k] === false);
+      const cb = (k) => edit ? '<span role="checkbox" data-silson-toggle="' + k + '" title="체크하면 고객 리포트와 인쇄/PDF에 포함됩니다" aria-checked="' + secOn(k) + '" style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-right:6px;border-radius:4px;border:1.5px solid #0d9488;font-size:10px;font-weight:900;line-height:1;vertical-align:-2px;cursor:pointer;color:#fff;background:' + (secOn(k) ? "#0d9488" : "transparent") + '">' + (secOn(k) ? "✓" : "") + "</span>" : "";
+      const sec = (k, inner) => '<section class="silsec space-y-4" data-sec="' + k + '"' + (secOn(k) ? "" : ' data-off="1"') + (edit ? ' data-edit="1"' : "") + '><div class="silsec-body space-y-4">' + inner + "</div></section>";
+      const show = (inner) => { root.innerHTML = box + inner; };
+      let chipsHtml = '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
+        '<div><h2 class="text-sm font-extrabold text-slate-900">' + cb("silsonTable") + '🏥 실손의료비 세대 분석</h2>' +
         '<p class="text-[11px] text-slate-500 mt-0.5">가입 세대를 확인하고, 최신 5세대 실손으로 바꾸면 무엇이 달라지는지 살펴봅니다.</p></div>' +
         '<div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">' + chips + "</div>";
-      html += "</div>";
+      chipsHtml += "</div>";
+      let html = sec("silsonTable", chipsHtml);
 
       if (!cur) {
         html += '<div class="bg-white rounded-2xl border border-slate-200 p-6 text-center space-y-1">' +
@@ -1405,7 +1404,7 @@
 
       const g = byKey(cur), g5 = byKey("g5"), idx = gens.indexOf(g);
       const note = forced && forced === cur ? "설계사가 지정한 세대" : (cur === detected ? "계약일로 확인한 세대" : "선택한 세대");
-      html += '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">' +
+      html += sec("silsonTable", '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">' +
         '<div class="bg-gradient-to-r from-slate-900 to-teal-900 text-white px-4 py-3"><p class="text-[10px] text-teal-200 font-bold">' + esc(note) + "</p>" +
         '<h3 class="text-base font-black">' + esc(g.name) + ' <span class="text-xs font-semibold text-slate-300">· ' + esc(g.nick) + " · " + esc(g.period) + "</span></h3></div>" +
         '<div class="p-4 space-y-3"><ul class="space-y-1.5 text-xs text-slate-700 leading-relaxed list-disc pl-4">' +
@@ -1414,16 +1413,16 @@
         ["갱신주기", "재가입주기", "본인부담금", "보장한도"].map((lb) => {
           const r = SILSON_DATA.rows.find((x) => x.label === lb);
           return '<div class="rounded-xl bg-slate-50 border border-slate-200 p-2.5' + (lb === "본인부담금" || lb === "보장한도" ? " col-span-2" : "") + '"><p class="text-[10px] font-bold text-slate-400">' + esc(lb) + '</p><p class="text-[11px] text-slate-800 leading-relaxed">' + esc(r.v[idx]) + "</p></div>";
-        }).join("") + "</div></div></div>";
+        }).join("") + "</div></div></div>");
 
       const mine = found.find((f) => f.key === cur) || found[0];
       if (mine) {
         const rl = mine.riders.map((r) => '<tr class="border-t border-slate-100"><td class="py-1.5 px-2 text-[11px] text-slate-700">' + esc(r.name) + '</td><td class="py-1.5 px-2 text-[11px] text-slate-700 text-right whitespace-nowrap">' + esc(r.amount || "-") + '</td><td class="py-1.5 px-2 text-[11px] text-slate-500 text-right whitespace-nowrap">' + esc(r.riderPrem || "-") + "</td></tr>").join("");
-        html += '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-2">' +
-          '<h3 class="text-sm font-extrabold text-slate-900">👤 고객 가입 내용</h3>' +
+        html += sec("silsonMine", '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-2">' +
+          '<h3 class="text-sm font-extrabold text-slate-900">' + cb("silsonMine") + '👤 고객 가입 내용</h3>' +
           '<p class="text-[11px] text-slate-600">' + esc((mine.company + " " + mine.product).trim()) + (mine.date ? " · 계약일 " + esc(mine.date) : "") + (mine.premium ? " · 월 " + esc(mine.premium) : "") + "</p>" +
           (rl ? '<div class="overflow-x-auto"><table class="w-full text-left"><thead class="bg-slate-100 text-[10px] text-slate-500"><tr><th class="py-1.5 px-2">가입 담보</th><th class="py-1.5 px-2 text-right">가입금액</th><th class="py-1.5 px-2 text-right">보험료</th></tr></thead><tbody>' + rl + "</tbody></table></div>"
-            : '<p class="text-[11px] text-slate-400">증권에서 실손 세부 담보가 확인되지 않았습니다.</p>') + "</div>";
+            : '<p class="text-[11px] text-slate-400">증권에서 실손 세부 담보가 확인되지 않았습니다.</p>') + "</div>");
       }
 
       const v = SILSON_DATA.vs5[cur];
@@ -1446,11 +1445,11 @@
           ? '<div class="rounded-xl border border-teal-300 bg-teal-50 p-3 space-y-1.5"><p class="text-[11px] font-extrabold text-teal-800">👤 고객 가입 내용 기준 핵심 포인트</p><ul class="space-y-1.5">' + pts.map((t) => '<li class="flex gap-1.5 text-xs leading-relaxed text-teal-900"><span class="shrink-0">📌</span><span>' + esc(t) + "</span></li>").join("") + "</ul></div>" : "";
         const list = (items, cls, icon) => items.length
           ? '<ul class="space-y-1.5">' + items.map((t) => '<li class="flex gap-1.5 text-xs leading-relaxed ' + cls + '"><span class="shrink-0">' + icon + "</span><span>" + esc(t) + "</span></li>").join("") + "</ul>" : "";
-        html += '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
-          '<h3 class="text-sm font-extrabold text-slate-900">🔄 ' + esc(g.name) + " → 5세대 실손으로 바꾸면</h3>" + personalHtml +
+        html += sec("silsonSwitch", '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
+          '<h3 class="text-sm font-extrabold text-slate-900">' + cb("silsonSwitch") + '🔄 ' + esc(g.name) + " → 5세대 실손으로 바꾸면</h3>" + personalHtml +
           '<div class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-1.5"><p class="text-[11px] font-extrabold text-emerald-700">좋아지는 점</p>' + list(v.good, "text-emerald-900", "👍") + "</div>" +
           '<div class="rounded-xl border border-rose-200 bg-rose-50/60 p-3 space-y-1.5"><p class="text-[11px] font-extrabold text-rose-700">부족해지거나 불리해지는 점</p>' + list(v.bad, "text-rose-900", "⚠️") + "</div>" +
-          (v.note.length ? '<div class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1.5"><p class="text-[11px] font-extrabold text-slate-600">참고</p>' + list(v.note, "text-slate-700", "ℹ️") + "</div>" : "") + "</div>";
+          (v.note.length ? '<div class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1.5"><p class="text-[11px] font-extrabold text-slate-600">참고</p>' + list(v.note, "text-slate-700", "ℹ️") + "</div>" : "") + "</div>");
 
         const rows = SILSON_DATA.rows.map((r) => {
           const same = r.v[idx] === r.v[6];
@@ -1458,9 +1457,9 @@
             '<td class="py-2 px-2 text-[11px] text-slate-700">' + esc(r.v[idx]) + "</td>" +
             '<td class="py-2 px-2 text-[11px] ' + (same ? "text-slate-500" : "text-slate-900 font-semibold") + '">' + esc(r.v[6]) + "</td></tr>";
         }).join("");
-        html += '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">' +
-          '<div class="px-4 py-3 border-b border-slate-100"><h3 class="text-sm font-extrabold text-slate-900">📊 항목별 비교</h3><p class="text-[10px] text-slate-400">노란 배경은 5세대에서 달라지는 항목입니다.</p></div>' +
-          '<div class="overflow-x-auto"><table class="w-full text-left"><thead class="bg-slate-900 text-white text-[10px]"><tr><th class="py-2 px-2">구분</th><th class="py-2 px-2">' + esc(g.name) + '</th><th class="py-2 px-2">' + esc(g5.name) + "</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
+        html += sec("silsonCompare", '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">' +
+          '<div class="px-4 py-3 border-b border-slate-100"><h3 class="text-sm font-extrabold text-slate-900">' + cb("silsonCompare") + '📊 항목별 비교</h3><p class="text-[10px] text-slate-400">노란 배경은 5세대에서 달라지는 항목입니다.</p></div>' +
+          '<div class="overflow-x-auto"><table class="w-full text-left"><thead class="bg-slate-900 text-white text-[10px]"><tr><th class="py-2 px-2">구분</th><th class="py-2 px-2">' + esc(g.name) + '</th><th class="py-2 px-2">' + esc(g5.name) + "</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>");
       }
       html += '<p class="text-[10px] text-slate-400 leading-relaxed px-1">※ 세대 구분과 보장 내용은 「실손의료비 변천사」 자료 기준의 일반 안내이며, 실제 보장은 계약 증권·약관과 보험사 기준이 우선합니다. 실손 전환 전에는 병력·의료 이용 이력과 보험료를 반드시 함께 확인해 주세요.</p>';
       show(html);
@@ -1883,9 +1882,9 @@
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     [data-excluded][data-excluded] { display: none !important; }
-    #silsonRoot[data-off="1"]:not([data-edit]) #silsonAnalysis { display: none !important; }
-    #silsonRoot[data-off="1"][data-edit] #silsonAnalysis { opacity: .4; }
-    @media print { [data-print-excluded][data-print-excluded], #silsonRoot[data-off="1"] #silsonAnalysis { display: none !important; } }
+    .silsec[data-off="1"]:not([data-edit]) { display: none !important; }
+    .silsec[data-off="1"][data-edit] .silsec-body { opacity: .4; }
+    @media print { [data-print-excluded][data-print-excluded], .silsec[data-off="1"] { display: none !important; } }
     .nav-btn { flex: 1 0 auto; padding-left: 0.65rem; padding-right: 0.65rem; white-space: nowrap; }
     details > summary { list-style: none; }
     details > summary::-webkit-details-marker { display: none; }
