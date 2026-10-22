@@ -424,6 +424,7 @@
       profile: { jobType: "근로소득자", income: "5000" },
       heroMetrics: [],
       includeTabs: { status: true, contracts: true, silson: true, compare: true },
+      includeSections: { silsonTable: true },
       silson: { generation: "auto" },
       theme: "default",
       analysisMetrics: [],
@@ -1305,6 +1306,14 @@
       if (!root.__bound) {
         root.__bound = true;
         root.addEventListener("click", (e) => {
+          if (e.target.closest("[data-silson-toggle]")) {
+            e.preventDefault();
+            const was = window.__silsonTableOn !== undefined ? window.__silsonTableOn : !(DATA && DATA.includeSections && DATA.includeSections.silsonTable === false);
+            window.__silsonTableOn = !was;
+            window.parent.postMessage({ type: "includeSections", value: { silsonTable: !was } }, "*");
+            renderSilsonView(DATA, existingList, window.__silsonSel);
+            return;
+          }
           const b = e.target.closest("[data-gen]");
           if (b) { window.__silsonSel = b.getAttribute("data-gen"); renderSilsonView(DATA, existingList, window.__silsonSel); }
         });
@@ -1359,7 +1368,19 @@
       }
       box += "</div>";
 
-      let html = box + '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
+      // '실손의료비 세대 분석표'(위 가입 세대 칸을 뺀 아래 전체)를 고객 리포트·인쇄/PDF에 넣을지 고르는 체크박스(미리보기에서만 보임)
+      const edit = typeof EDIT_MODE !== "undefined" && EDIT_MODE;
+      const tableOn = window.__silsonTableOn !== undefined ? window.__silsonTableOn : !(DATA && DATA.includeSections && DATA.includeSections.silsonTable === false);
+      const bar = edit ? '<label class="no-print flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 cursor-pointer select-none">' +
+        '<span role="checkbox" data-silson-toggle="1" aria-checked="' + tableOn + '" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:4px;border:1.5px solid #0d9488;font-size:11px;font-weight:900;line-height:1;color:#fff;background:' + (tableOn ? "#0d9488" : "transparent") + '">' + (tableOn ? "✓" : "") + "</span>" +
+        '<span class="text-xs font-extrabold text-slate-800">실손의료비 세대 분석표</span>' +
+        '<span class="text-[10px] text-slate-500">' + (tableOn ? "고객 리포트와 인쇄/PDF에 포함됩니다" : "고객 리포트와 인쇄/PDF에서 제외됩니다") + "</span></label>" : "";
+      const show = (inner) => {
+        root.innerHTML = box + bar + '<div id="silsonAnalysis" class="space-y-4">' + inner + "</div>";
+        if (tableOn) root.removeAttribute("data-off"); else root.setAttribute("data-off", "1");
+        if (edit) root.setAttribute("data-edit", "1");
+      };
+      let html = '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
         '<div><h2 class="text-sm font-extrabold text-slate-900">🏥 실손의료비 세대 분석</h2>' +
         '<p class="text-[11px] text-slate-500 mt-0.5">가입 세대를 확인하고, 최신 5세대 실손으로 바꾸면 무엇이 달라지는지 살펴봅니다.</p></div>' +
         '<div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">' + chips + "</div>";
@@ -1369,7 +1390,7 @@
         html += '<div class="bg-white rounded-2xl border border-slate-200 p-6 text-center space-y-1">' +
           '<p class="text-2xl">🏥</p><p class="text-xs font-bold text-slate-700">고객의 실손 가입 세대를 확인하지 못했습니다.</p>' +
           '<p class="text-[11px] text-slate-400">위에서 세대를 눌러 내용을 보거나, 설계사 화면에서 세대를 직접 지정해 주세요.</p></div>';
-        root.innerHTML = html;
+        show(html);
         return;
       }
 
@@ -1433,7 +1454,7 @@
           '<div class="overflow-x-auto"><table class="w-full text-left"><thead class="bg-slate-900 text-white text-[10px]"><tr><th class="py-2 px-2">구분</th><th class="py-2 px-2">' + esc(g.name) + '</th><th class="py-2 px-2">' + esc(g5.name) + "</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>";
       }
       html += '<p class="text-[10px] text-slate-400 leading-relaxed px-1">※ 세대 구분과 보장 내용은 「실손의료비 변천사」 자료 기준의 일반 안내이며, 실제 보장은 계약 증권·약관과 보험사 기준이 우선합니다. 실손 전환 전에는 병력·의료 이용 이력과 보험료를 반드시 함께 확인해 주세요.</p>';
-      root.innerHTML = html;
+      show(html);
     }
 
     function renderStatusViews(DATA, existingList, proposedList) {
@@ -1856,7 +1877,9 @@
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     [data-excluded][data-excluded] { display: none !important; }
-    @media print { [data-print-excluded][data-print-excluded] { display: none !important; } }
+    #silsonRoot[data-off="1"]:not([data-edit]) #silsonAnalysis { display: none !important; }
+    #silsonRoot[data-off="1"][data-edit] #silsonAnalysis { opacity: .4; }
+    @media print { [data-print-excluded][data-print-excluded], #silsonRoot[data-off="1"] #silsonAnalysis { display: none !important; } }
     .nav-btn { flex: 1 0 auto; padding-left: 0.65rem; padding-right: 0.65rem; white-space: nowrap; }
     details > summary { list-style: none; }
     details > summary::-webkit-details-marker { display: none; }
@@ -2455,6 +2478,9 @@
       if (!frame || e.source !== frame.contentWindow || !e.data) return;
       if (e.data.type === "includeTabs") {
         currentData.includeTabs = e.data.value;
+        saveToHistory(currentData);
+      } else if (e.data.type === "includeSections") {
+        currentData.includeSections = Object.assign({}, currentData.includeSections, e.data.value);
         saveToHistory(currentData);
       } else if (e.data.type === "includeTabsBlocked") {
         showToast("고객 리포트에는 최소 한 개 화면이 포함되어야 합니다.", true);
@@ -3336,6 +3362,7 @@ ${rawText || "없음"}
         const savedPrompts = currentData.scriptPrompts;
         const savedProfile = currentData.profile;
         const savedInclude = currentData.includeTabs;
+        const savedSections = currentData.includeSections;
         const savedTheme = currentData.theme;
         const savedSilson = currentData.silson;
 
@@ -3357,6 +3384,7 @@ ${rawText || "없음"}
         if (savedPrompts) currentData.scriptPrompts = savedPrompts;
         if (savedProfile) currentData.profile = savedProfile;
         if (savedInclude) currentData.includeTabs = savedInclude;
+        if (savedSections) currentData.includeSections = savedSections;
         if (savedTheme) currentData.theme = savedTheme;
         if (savedSilson) currentData.silson = savedSilson;
 
