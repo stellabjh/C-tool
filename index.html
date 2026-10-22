@@ -1320,14 +1320,50 @@
           '<span class="block text-[10px] ' + (on ? "text-slate-300" : "text-slate-400") + '">' + esc(g.period) + "</span></button>";
       }).join("");
 
-      let html = '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
+      // 고객 가입 세대 확인 칸: 계약일로 계산한 세대를 가장 먼저, 크게 보여줍니다.
+      const META = { pre: ["1세대", 0], s1: ["2세대", 0], s2: ["2세대", 15], s3: ["2세대", 15], good: ["3세대", 15], g4: ["4세대", 5], g5: ["5세대", 5] };
+      const now = new Date(), nowM = now.getFullYear() * 12 + now.getMonth();
+      const ymOf = (txt) => { const m = String(txt || "").match(/((?:19|20)\d{2})\D{0,3}(\d{1,2})/); return m ? { y: +m[1], mo: +m[2] } : null; };
+      const since = (txt) => {
+        const d = ymOf(txt);
+        if (!d) return "";
+        const diff = nowM - (d.y * 12 + d.mo - 1);
+        if (diff < 0) return "";
+        const yy = Math.floor(diff / 12), mm = diff % 12;
+        return "가입 후 약 " + (yy ? yy + "년 " : "") + (mm || !yy ? mm + "개월" : "");
+      };
+      const nextRejoin = (txt, cycle) => {
+        const d = ymOf(txt);
+        if (!d || !cycle) return "";
+        let y = d.y + cycle;
+        while (y * 12 + d.mo - 1 < nowM) y += cycle;
+        return "다음 재가입(재심사) 시기 약 " + y + "년 " + d.mo + "월 · " + cycle + "년 주기";
+      };
+      let box = '<div class="rounded-2xl border-2 border-teal-500 bg-teal-50 p-4 space-y-2.5 shadow-sm">' +
+        '<p class="text-[11px] font-extrabold text-teal-700">🏥 고객 실손의료비 가입 세대</p>';
+      if (found.length) {
+        box += found.map((f, i) => {
+          const k = (i === 0 && forced) ? forced : f.key, g = k ? byKey(k) : null;
+          const meta = k ? META[k] : null;
+          const label = (g ? '<span class="text-2xl font-black text-slate-900">' + meta[0] + ' 실손</span> <span class="text-sm font-bold text-teal-700">(' + (g.name.indexOf(meta[0]) === 0 ? "" : esc(g.name) + " · ") + esc(g.period) + ")</span>"
+            : '<span class="text-base font-extrabold text-slate-700">세대를 판별하지 못했습니다 — 계약일 확인이 필요합니다</span>');
+          const info = [(f.company + " " + f.product).trim(), f.date ? "가입일 " + f.date : "가입일 미확인", since(f.date)].filter(Boolean).map(esc).join(" · ");
+          const rj = meta ? nextRejoin(f.date, meta[1]) : "";
+          return '<div class="rounded-xl bg-white border border-teal-200 px-3 py-2.5 space-y-1"><div>' + label + (i === 0 && forced ? ' <span class="text-[10px] font-bold text-amber-700 bg-amber-100 rounded px-1.5 py-0.5">설계사 지정</span>' : "") + "</div>" +
+            '<p class="text-[11px] text-slate-600">' + info + "</p>" + (rj ? '<p class="text-[11px] text-slate-500">' + esc(rj) + "</p>" : "") + "</div>";
+        }).join("");
+      } else if (forced) {
+        const g = byKey(forced);
+        box += '<div class="rounded-xl bg-white border border-teal-200 px-3 py-2.5"><span class="text-2xl font-black text-slate-900">' + META[forced][0] + ' 실손</span> <span class="text-sm font-bold text-teal-700">(' + (g.name.indexOf(META[forced][0]) === 0 ? "" : esc(g.name) + " · ") + esc(g.period) + ')</span> <span class="text-[10px] font-bold text-amber-700 bg-amber-100 rounded px-1.5 py-0.5">설계사 지정</span></div>';
+      } else {
+        box += '<div class="rounded-xl bg-white border border-teal-200 px-3 py-3 text-xs text-slate-600">서류에서 실손의료비 계약을 찾지 못했습니다. 실손 계약의 증권을 올리면 가입일로 세대를 자동 계산해 보여드립니다.</div>';
+      }
+      box += "</div>";
+
+      let html = box + '<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">' +
         '<div><h2 class="text-sm font-extrabold text-slate-900">🏥 실손의료비 세대 분석</h2>' +
         '<p class="text-[11px] text-slate-500 mt-0.5">가입 세대를 확인하고, 최신 5세대 실손으로 바꾸면 무엇이 달라지는지 살펴봅니다.</p></div>' +
         '<div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">' + chips + "</div>";
-      if (found.length) {
-        html += '<div class="rounded-xl bg-teal-50 border border-teal-200 px-3 py-2 text-[11px] text-teal-900">' +
-          found.map((f) => "· " + esc((f.company + " " + f.product).trim()) + " — " + (f.date ? "계약일 " + esc(f.date) : "계약일 미확인") + (f.key ? " → <b>" + esc(byKey(f.key).name) + "</b>" : "")).join("<br>") + "</div>";
-      }
       html += "</div>";
 
       if (!cur) {
@@ -1731,6 +1767,12 @@
       }
     };
     const THEME_ORDER = ["default", "tealblue", "navy", "lightblue"];
+    // 선택한 테마는 이 브라우저의 기본 테마로 저장되어 새 화면·보관함 기록·불러오기에서도 그대로 유지됩니다.
+    const THEME_PREF_KEY = "REPORT_THEME_DEFAULT";
+    function getThemePref() {
+      try { const v = localStorage.getItem(THEME_PREF_KEY); if (REPORT_THEMES[v]) return v; } catch (e) { /* 저장소를 못 쓰면 기본 */ }
+      return "default";
+    }
 
     // <head>에 넣을 테마 설정(Tailwind 팔레트 + 덧씌우는 CSS). 기본 테마는 로고 색만 고정합니다.
     function reportThemeHead(key) {
@@ -1815,6 +1857,7 @@
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     [data-excluded][data-excluded] { display: none !important; }
+    @media print { [data-print-excluded][data-print-excluded] { display: none !important; } }
     .nav-btn { flex: 1 0 auto; padding-left: 0.65rem; padding-right: 0.65rem; white-space: nowrap; }
     details > summary { list-style: none; }
     details > summary::-webkit-details-marker { display: none; }
@@ -2317,6 +2360,7 @@
       if (!EDIT_MODE) {
         plannerCards.concat(plannerExtras).forEach(function (el) { el.setAttribute("data-excluded", "1"); });
       } else {
+        plannerCards.concat(plannerExtras).forEach(function (el) { el.setAttribute("data-print-excluded", "1"); });
         plannerCards.forEach(function (card) {
           const note = document.createElement("div");
           note.className = "no-print";
@@ -2361,6 +2405,8 @@
           box.textContent = on ? "✓" : "";
           btn.style.opacity = on ? "" : "0.55";
           banner.style.display = on ? "none" : "block";
+          // 미리보기에서 인쇄/PDF를 눌러도 체크한 화면만 나오게 합니다.
+          [btn, sec].forEach(function (el) { if (on) el.removeAttribute("data-print-excluded"); else el.setAttribute("data-print-excluded", "1"); });
         };
         box.addEventListener("click", function (e) {
           e.stopPropagation();
@@ -2470,6 +2516,7 @@
       const b = e.target.closest("[data-theme]");
       if (!b) return;
       document.getElementById("inpTheme").value = b.getAttribute("data-theme");
+      try { localStorage.setItem(THEME_PREF_KEY, b.getAttribute("data-theme")); } catch (err) { /* 무시 */ }
       renderThemePicker();
       syncInputsToData();
     });
@@ -2493,7 +2540,8 @@
       // 배우자 연소득·자녀 수 입력은 없앴으므로, 예전 기록에 남아 있어도 이어받지 않습니다.
       currentData.profile = { jobType: pf.jobType || "", income: pf.income ?? "" };
       document.getElementById("inpSilsonGen").value = (currentData.silson && currentData.silson.generation) || "auto";
-      document.getElementById("inpTheme").value = REPORT_THEMES[currentData.theme] ? currentData.theme : "default";
+      currentData.theme = getThemePref();
+      document.getElementById("inpTheme").value = currentData.theme;
       renderThemePicker();
 
       const sp = currentData.scriptPrompts || {};
@@ -2611,6 +2659,13 @@
         currentData.agentPhone = localStorage.getItem("SAVED_AGENT_PHONE") || "";
         currentData.agentOrg = localStorage.getItem("SAVED_AGENT_ORG") || "";
         currentData.scriptPrompts = { p1: savedP1, p2: savedP2, p3: savedP3, p4: savedP4, p5: savedP5 };
+
+        // 올렸던 파일과 입력한 요청 문구, 진행 표시도 함께 비웁니다. (읽는 중이던 파일의 결과는 버려집니다)
+        uploadedFiles = [];
+        document.getElementById("fileInput").value = "";
+        document.getElementById("rawTextInput").value = "";
+        document.getElementById("aiStatusBox").classList.add("hidden");
+        renderFileList();
 
         syncDataToInputs();
         renderPreview();
