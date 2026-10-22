@@ -255,14 +255,6 @@
                 <input id="inpProductName" type="text" placeholder="가입설계서 상품명 또는 리모델링 플랜명 입력" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
               </div>
               <div>
-                <label class="text-[11px] text-slate-400 block mb-1">목표 기준일 (실시간 D-Day 계산)</label>
-                <input id="inpTargetDate" type="date" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
-              </div>
-              <div>
-                <label class="text-[11px] text-slate-400 block mb-1">D-Day 라벨명</label>
-                <input id="inpTargetLabel" type="text" placeholder="예: 상령일 / 출생예정일" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
-              </div>
-              <div>
                 <label class="text-[11px] text-slate-400 block mb-1">월 납입 보험료 표시</label>
                 <input id="inpPremium1" type="text" placeholder="예: 50,000원" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" />
               </div>
@@ -402,7 +394,7 @@
       p2: "분석된 부족 보장 공백(뇌/심장/수술비 등)을 구체적으로 짚어주며 보완 플랜을 설득하는 반론 극복 화법",
       p3: "기존 보험과 신규 제안안의 비교표 및 감액기간 조건 우위를 설명하는 설득 화법",
       p4: "가족 또는 배우자와 상의해 본다며 결정을 미룰 때 직접 체크박스로 빼고 넣어보라고 권유하는 안심 화법",
-      p5: "상령일(보험나이 인상) 및 면책/감액기간을 하루라도 빨리 통과하기 위해 지금 즉시 결정하도록 유도하는 클로징 화법"
+      p5: "면책/감액기간을 하루라도 빨리 통과하기 위해 지금 즉시 결정하도록 유도하는 클로징 화법"
     };
 
     const EMPTY_DATA = {
@@ -413,8 +405,6 @@
       clientName: "",
       insuredName: "",
       productName: "",
-      targetDate: "",
-      targetLabel: "기준일",
       premium1: "",
       premium2: "",
       agentName: localStorage.getItem("SAVED_AGENT_NAME") || "",
@@ -1524,9 +1514,6 @@
       const pName = DATA.productName || "맞춤 보장 설계안";
       const summaryHtml = `
         <div class="space-y-3">
-          <div class="flex items-center justify-between gap-2">
-            ${DATA.targetDate ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-teal-500/20 border border-teal-400/30 text-teal-200 text-[11px] font-semibold"><span>${DATA.mode === "child" ? "👶" : "🛡️"}</span> ${esc(computeDdayText(DATA.targetDate, DATA.targetLabel))}</span>` : `<span></span>`}
-          </div>
           <div>
             <span class="px-2 py-0.5 rounded-md bg-white/10 text-teal-200 text-[10px] font-extrabold">계약현황 요약</span>
             <h2 class="text-lg font-extrabold leading-snug mt-1">${esc(cName)}님의 계약현황 요약</h2>
@@ -2107,19 +2094,6 @@
       return \`\${Math.round(val).toLocaleString()}만원\`;
     }
 
-    function computeDdayText(dateStr, label) {
-      if (!dateStr) return label || "맞춤 보장 플랜";
-      const target = new Date(dateStr + "T00:00:00");
-      if (isNaN(target.getTime())) return (label || "기준일") + " " + dateStr;
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      const diff = Math.round((target - today) / (1000 * 60 * 60 * 24));
-      const formatted = dateStr.replace(/-/g, ".");
-      if (diff > 0) return \`\${label || '기준일'} \${formatted} (D-\${diff})\`;
-      if (diff === 0) return \`\${label || '기준일'} \${formatted} (D-Day)\`;
-      return \`\${label || '기준일'} \${formatted} (D+\${Math.abs(diff)})\`;
-    }
-
     const cName = DATA.clientName || "고객";
     const pName = DATA.productName || "맞춤 보장 설계안";
 
@@ -2550,8 +2524,6 @@
       document.getElementById("inpClientName").value = currentData.clientName || "";
       document.getElementById("inpInsuredName").value = currentData.insuredName || "";
       document.getElementById("inpProductName").value = currentData.productName || "";
-      document.getElementById("inpTargetDate").value = currentData.targetDate || "";
-      document.getElementById("inpTargetLabel").value = currentData.targetLabel || "";
       document.getElementById("inpPremium1").value = currentData.premium1 || "";
       document.getElementById("inpPremium2").value = currentData.premium2 || "";
       document.getElementById("inpAgentName").value = currentData.agentName || "";
@@ -2591,8 +2563,6 @@
       currentData.clientName = document.getElementById("inpClientName").value;
       currentData.insuredName = document.getElementById("inpInsuredName").value;
       currentData.productName = document.getElementById("inpProductName").value;
-      currentData.targetDate = document.getElementById("inpTargetDate").value;
-      currentData.targetLabel = document.getElementById("inpTargetLabel").value;
       currentData.premium1 = document.getElementById("inpPremium1").value;
       currentData.premium2 = document.getElementById("inpPremium2").value;
       currentData.agentName = document.getElementById("inpAgentName").value;
@@ -3342,8 +3312,6 @@ ${rawText || "없음"}
 반드시 아래 JSON 구조로만 응답하세요:
 {
   "productName": "메인 상품명 또는 리모델링 플랜명",
-  "targetDate": "YYYY-MM-DD 형식의 상령일/출생예정일 (모르면 빈 문자열)",
-  "targetLabel": "상령일 또는 출생예정일",
   "premium1": "월 납입 보험료 요약",
   "premium2": "변경후 보험료 요약 (없으면 빈 문자열)",
   "agentComment": "보장분석 총평 2문장",
