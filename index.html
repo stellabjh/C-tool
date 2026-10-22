@@ -64,9 +64,6 @@
       <button id="btnDownloadClientHtml" class="px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-teal-500/20 transition flex items-center gap-1.5">
         <span>📥</span> 고객용 한눈에 보장 다운로드
       </button>
-      <button id="btnDownloadClientPdf" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-teal-200 border border-slate-700 transition" title="카톡으로 보내도 아이폰·갤럭시에서 바로 열리는 PDF로 저장합니다">
-        📄 PDF로 저장 (카톡용)
-      </button>
     </div>
   </header>
 
@@ -2703,17 +2700,6 @@
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    });
-
-    document.getElementById("btnDownloadClientPdf").addEventListener("click", () => {
-      syncInputsToData();
-      saveToHistory(currentData);
-      const html = generateClientHtml(currentData) + "<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),1800));<\/script>";
-      const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
-      const w = window.open(url, "_blank");
-      if (!w) { alert("팝업이 막혀 있습니다. 팝업을 허용한 뒤 다시 눌러 주세요."); return; }
-      alert("잠시 뒤 인쇄 창이 열리면 '대상'을 'PDF로 저장'으로 선택해 저장하세요. 저장한 PDF를 카톡으로 보내면 아이폰·갤럭시에서 바로 열립니다.");
-      setTimeout(() => URL.revokeObjectURL(url), 120000);
     });
 
     const savedApiKey = localStorage.getItem("GEMINI_BUILDER_API_KEY");
