@@ -2107,6 +2107,8 @@
       .friend-print { display: block !important; }
       /* 신호등 아래 막대그래프(담보별 진단현황)는 신호등에 이어서 쪽 구분 없이 계속 인쇄 (담보 한 줄은 쪼개지지 않음) */
       .friend-print, .friend-blk { break-inside: auto !important; page-break-inside: auto !important; }
+      /* 계약·비교: 합계 상자 바로 아래에서 비교분석표가 이어서 시작 (표는 줄 단위로 쪽을 넘어가고 머리글이 반복됨) */
+      #compareTableCard { break-inside: auto !important; page-break-inside: auto !important; }
       .friend-hint { display: none !important; }
     }
   </style>
@@ -2233,7 +2235,7 @@
       </div>
 
       <!-- 3. 기존 vs 신규 합산 실시간 비교분석표 -->
-      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
+      <div id="compareTableCard" class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
         <div>
           <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">⚖️ 선택 담보 기준 보장금액 전·후 비교분석표</h3>
           <p class="text-[11px] text-slate-500 mt-0.5">위에서 체크한 기존 계약과 신규 제안 담보들이 합산된 실시간 비교 결과입니다.</p>
