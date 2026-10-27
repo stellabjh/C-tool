@@ -2102,7 +2102,8 @@
       .overflow-x-auto { overflow: visible !important; }
       header, footer, .no-print, .nav-tabs-bar { display: none !important; }
       .mobile-shell, .wide-shell { max-width: 100% !important; margin: 0 !important; box-shadow: none !important; }
-      .view-section { display: block !important; }
+      .view-section { display: block !important; break-before: page; page-break-before: always; }
+      .view-section[data-print-first] { break-before: auto; page-break-before: auto; }
       .friend-print { display: block !important; }
       .friend-hint { display: none !important; }
     }
@@ -2563,6 +2564,16 @@
     ${renderStatusViews.toString()}
     renderCompareView();
     ${editMode ? "renderHistoryView();" : ""}
+
+    // 인쇄/PDF: 항목(화면)마다 새 쪽에서 시작합니다. 맨 앞에 나오는 항목만 요약 카드와 같은 쪽에 붙입니다.
+    window.addEventListener("beforeprint", function () {
+      var first = null;
+      document.querySelectorAll(".view-section").forEach(function (el) {
+        el.removeAttribute("data-print-first");
+        if (!first && !el.hasAttribute("data-excluded") && !el.hasAttribute("data-print-excluded")) first = el;
+      });
+      if (first) first.setAttribute("data-print-first", "1");
+    });
 
     // 탭 전환
     document.querySelectorAll(".nav-btn").forEach(btn => {
