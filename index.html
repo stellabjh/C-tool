@@ -1699,7 +1699,7 @@
       const signalsEx = computeFriendSignals(DATA.profile, existingList, [], parseNum);
       const otherRiders = ((signalsEx.unmatched) || []).filter((x) => !x.proposed);
       const otherBtnHtml = signals.length === 0 || otherRiders.length === 0 ? "" : `
-          <button type="button" data-friend="other" class="w-full text-left cursor-pointer px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-600 flex items-center justify-between"><span>📎 그 밖의 담보 <span class="text-[9px] font-semibold text-slate-400">표에 없는 담보 ${otherRiders.length}개</span></span><span>›</span></button>`;
+          <button type="button" data-friend="other" class="friend-hint w-full text-left cursor-pointer px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-600 flex items-center justify-between"><span>📎 그 밖의 담보 <span class="text-[9px] font-semibold text-slate-400">표에 없는 담보 ${otherRiders.length}개</span></span><span>›</span></button>`;
       // ---- 보장분석신호등: 소득 정보가 있으면 다섯 친구 기준, 없으면 담보 8항목 기준 ----
       const fcount = { green: 0, yellow: 0, red: 0, gray: 0 };
       signals.forEach((s) => fcount[s.status.color]++);
@@ -1726,7 +1726,7 @@
                 <p class="text-[11px] font-extrabold flex items-center gap-1 leading-tight mt-0.5"><span class="w-2 h-2 rounded-full shrink-0 ${LIGHT[s.status.color].dot}"></span>${esc(s.label)}</p>
                 <p class="text-[10px] leading-tight mt-0.5"><span class="font-black text-slate-800">${s.total ? "충족 " + s.met + "/" + s.total : "-"}</span><span class="opacity-60"> · 필요 ${s.value === null ? "시장가격" : fmt(s.value)}</span></p>
                 ${s.pct === null ? "" : `<div class="w-full bg-white/70 rounded-full h-1 overflow-hidden mt-1"><div class="${LIGHT[s.status.color].bar} h-1 rounded-full" style="width:${Math.min(100, s.pct)}%"></div></div>`}
-                <p class="text-[9px] font-bold opacity-60 mt-1">담보 자세히 보기 ›</p>
+                <p class="friend-hint text-[9px] font-bold opacity-60 mt-1">담보 자세히 보기 ›</p>
               </button>`).join("")}
           </div>
           ${otherBtnHtml}
@@ -1831,6 +1831,16 @@
           </div>
         </div>`;
       window.__friendModal = { friends: friendModalHtml, other: otherModalHtml };
+      // 인쇄/PDF에는 창으로 열어야 보이는 상세를 모두 펼쳐서 넣습니다. (화면에서는 숨김)
+      const friendPrintHtml = signalsEx.length === 0 ? "" : `
+        <div class="friend-print bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
+          <div>
+            <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-200">담보별 진단현황</span>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">기존 계약 기준 다섯 친구</h3>
+          </div>
+          ${friendModalHtml.map((h) => `<div style="break-inside:avoid;page-break-inside:avoid;" class="rounded-xl border border-slate-200 p-3">${h}</div>`).join("")}
+          ${otherRiders.length ? `<div style="break-inside:avoid;page-break-inside:avoid;" class="rounded-xl border border-slate-200 p-3">${otherModalHtml}</div>` : ""}
+        </div>`;
       const flatDiagHtml = `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
           <div>
@@ -1887,7 +1897,7 @@
       const openedContracts = contractsRoot ? openState(contractsRoot) : [];
       const summaryRoot = document.getElementById("summaryRoot");
       if (summaryRoot) summaryRoot.innerHTML = summaryHtml;
-      root.innerHTML = (summaryRoot ? "" : summaryHtml) + (signals.length ? friendTrafficHtml : trafficHtml) + diagHtml + (contractsRoot ? "" : holdHtml + productHtml);
+      root.innerHTML = (summaryRoot ? "" : summaryHtml) + (signals.length ? friendTrafficHtml : trafficHtml) + diagHtml + friendPrintHtml + (contractsRoot ? "" : holdHtml + productHtml);
       restoreState(root, openedMain);
       // 다섯 친구 카드를 누르면 상세 창이 뜹니다 (인쇄·PDF에는 들어가지 않습니다)
       window.__showFriend = function (key) {
@@ -2035,6 +2045,7 @@
       min-height: 100vh;
       background: #f8fafc;
     }
+    .friend-print { display: none; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     [data-excluded][data-excluded] { display: none !important; }
@@ -2050,6 +2061,8 @@
       header, footer, .no-print, .nav-tabs-bar { display: none !important; }
       .mobile-shell, .wide-shell { max-width: 100% !important; margin: 0 !important; box-shadow: none !important; }
       .view-section { display: block !important; }
+      .friend-print { display: block !important; }
+      .friend-hint { display: none !important; }
     }
   </style>
 </head>
