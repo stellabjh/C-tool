@@ -1695,6 +1695,11 @@
         </div>`;
 
       // ---- 다섯 친구 (소득 기준 필요 보장) ----
+      // 기존 계약만 기준으로 한 다섯 친구 진단 (신호등은 기존 + 신규 합산, 상세 창은 기존 계약만)
+      const signalsEx = computeFriendSignals(DATA.profile, existingList, [], parseNum);
+      const otherRiders = ((signalsEx.unmatched) || []).filter((x) => !x.proposed);
+      const otherBtnHtml = signals.length === 0 || otherRiders.length === 0 ? "" : `
+          <button type="button" data-friend="other" class="friend-hint w-full text-left cursor-pointer px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-600 flex items-center justify-between"><span>📎 그 밖의 담보 <span class="text-[9px] font-semibold text-slate-400">표에 없는 담보 ${otherRiders.length}개</span></span><span>›</span></button>`;
       // ---- 보장분석신호등: 소득 정보가 있으면 다섯 친구 기준, 없으면 담보 8항목 기준 ----
       const fcount = { green: 0, yellow: 0, red: 0, gray: 0 };
       signals.forEach((s) => fcount[s.status.color]++);
@@ -1713,7 +1718,7 @@
           </div>
           <div class="grid grid-cols-2 gap-1.5">
             ${signals.map((s, i) => `
-              <div class="${i === signals.length - 1 && signals.length % 2 === 1 ? "col-span-2" : ""} px-2.5 py-2 rounded-lg border ${LIGHT[s.status.color].chip}">
+              <button type="button" data-friend="${i}" class="${i === signals.length - 1 && signals.length % 2 === 1 ? "col-span-2" : ""} block w-full text-left cursor-pointer px-2.5 py-2 rounded-lg border ${LIGHT[s.status.color].chip}">
                 <div class="flex items-center justify-between gap-1">
                   <span class="text-[9px] font-bold opacity-70">${esc(s.order)}</span>
                   <span class="px-1.5 rounded text-[9px] font-extrabold border ${LIGHT[s.status.color].chip}">${s.status.text}</span>
@@ -1721,8 +1726,10 @@
                 <p class="text-[11px] font-extrabold flex items-center gap-1 leading-tight mt-0.5"><span class="w-2 h-2 rounded-full shrink-0 ${LIGHT[s.status.color].dot}"></span>${esc(s.label)}</p>
                 <p class="text-[10px] leading-tight mt-0.5"><span class="font-black text-slate-800">${s.total ? "충족 " + s.met + "/" + s.total : "-"}</span><span class="opacity-60"> · 필요 ${s.value === null ? "시장가격" : fmt(s.value)}</span></p>
                 ${s.pct === null ? "" : `<div class="w-full bg-white/70 rounded-full h-1 overflow-hidden mt-1"><div class="${LIGHT[s.status.color].bar} h-1 rounded-full" style="width:${Math.min(100, s.pct)}%"></div></div>`}
-              </div>`).join("")}
+                <p class="friend-hint text-[9px] font-bold opacity-60 mt-1">담보 자세히 보기 ›</p>
+              </button>`).join("")}
           </div>
+          ${otherBtnHtml}
           <details class="text-[10px] text-slate-500">
             <summary class="cursor-pointer font-semibold text-slate-600">판정 기준 보기</summary>
             <ul class="mt-1.5 space-y-1 leading-snug">
@@ -1776,8 +1783,6 @@
         </div>`;
       const flatRowsHtml = rows.map(flatRowHtml).join("");
 
-      // 기존 계약만 기준으로 한 다섯 친구 진단 (신호등은 기존 + 신규 합산, 이쪽은 기존 계약만)
-      const signalsEx = computeFriendSignals(DATA.profile, existingList, [], parseNum);
       const noExisting = existingList.length === 0 ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-400 text-center">등록된 기존 계약이 없어 모두 미가입으로 표시됩니다.</div>` : "";
       // 담보 한 줄: 담보명 · 현재 금액 · 상태 / 권장 금액 대비 막대 · 부족 금액
       const itemRowHtml = (it) => `
@@ -1795,50 +1800,46 @@
             <span class="text-[9px] text-slate-400 shrink-0">권장 ${fmt(it.rec)}${it.shortfall > 0 ? ` · <span class="text-rose-500 font-bold">부족 ${fmt(it.shortfall)}</span>` : ""}</span>
           </div>`}
         </div>`;
-      const otherRidersHtml = (signalsEx.unmatched || []).filter((x) => !x.proposed).length === 0 ? "" : `
-              <details class="rounded-xl border border-slate-200">
-                <summary class="cursor-pointer px-2.5 py-2 flex items-center justify-between gap-2">
-                  <span class="text-xs font-extrabold text-slate-700">그 밖의 담보 <span class="text-[9px] font-bold text-slate-400">표에 없는 담보</span></span>
-                  <span class="text-[10px] text-slate-400">${signalsEx.unmatched.filter((x) => !x.proposed).length}개 ▾</span>
-                </summary>
-                <div class="px-2 pb-2 space-y-1">
-                  ${signalsEx.unmatched.filter((x) => !x.proposed).map((x) => `
-                    <div class="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80 flex items-center justify-between gap-2">
-                      <span class="min-w-0 truncate text-[11px]"><span class="font-bold text-slate-800">${esc(x.name)}</span> <span class="text-[9px] text-slate-400">${esc(x.company)}</span></span>
-                      <span class="text-[11px] font-black text-slate-900 shrink-0">${fmt(x.amount)}</span>
-                    </div>`).join("")}
-                </div>
-              </details>`;
-      const friendDiagHtml = signalsEx.length === 0 ? "" : `
-        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
+      // 다섯 친구 카드를 누르면 뜨는 상세 창 내용 (담보별 진단현황: 기존 계약 기준)
+      const friendModalHtml = signalsEx.map((s) => `
+        <div class="space-y-2.5">
+          <div class="flex items-start justify-between gap-2" style="padding-right:36px;">
+            <div class="min-w-0">
+              <p class="text-[10px] font-bold text-slate-400">${esc(s.order)} · 기존 계약 기준</p>
+              <h4 class="text-base font-extrabold text-slate-900 flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full shrink-0 ${LIGHT[s.status.color].dot}"></span>${esc(s.label)}</h4>
+            </div>
+            <span class="px-1.5 py-0.5 rounded text-[10px] font-extrabold border shrink-0 ${LIGHT[s.status.color].chip}">${s.status.text}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            ${s.pct === null ? `<span class="flex-1"></span>` : `<div class="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden"><div class="${LIGHT[s.status.color].bar} h-1.5 rounded-full" style="width:${Math.min(100, s.pct)}%"></div></div>`}
+            <span class="text-[10px] text-slate-500 shrink-0">${s.total ? "충족 " + s.met + "/" + s.total + " · " : ""}필요 ${s.value === null ? "시장가격" : fmt(s.value)}${s.pct === null ? "" : " · 평균 " + s.pct + "%"}</span>
+          </div>
+          <p class="text-[10px] text-slate-400 leading-snug">${esc(s.basis)}</p>
+          ${existingList.length === 0 ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-slate-400 text-center">등록된 기존 계약이 없어 모두 미가입으로 표시됩니다.</div>` : ""}
+          <div class="space-y-1">${s.items.length ? s.items.map(itemRowHtml).join("") : `<p class="text-[11px] text-slate-400 text-center py-3">표시할 담보가 없습니다.</p>`}</div>
+          <p class="text-[9px] text-slate-400 leading-snug">연소득 ${fmt(signalsEx[0].own)} 기준 · 권장 금액 대비 현재 가입금액 (50% 미만 부족, 50~99% 주의, 100% 이상 충분, 0은 미가입)</p>
+        </div>`);
+      const otherModalHtml = `
+        <div class="space-y-2.5">
+          <div style="padding-right:36px;"><p class="text-[10px] font-bold text-slate-400">기존 계약 기준</p><h4 class="text-base font-extrabold text-slate-900">📎 그 밖의 담보 <span class="text-[10px] font-bold text-slate-400">표에 없는 담보</span></h4></div>
+          <div class="space-y-1">
+            ${otherRiders.map((x) => `
+              <div class="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
+                <span class="min-w-0 truncate text-[11px]"><span class="font-bold text-slate-800">${esc(x.name)}</span> <span class="text-[9px] text-slate-400">${esc(x.company)}</span></span>
+                <span class="text-[11px] font-black text-slate-900 shrink-0">${fmt(x.amount)}</span>
+              </div>`).join("")}
+          </div>
+        </div>`;
+      window.__friendModal = { friends: friendModalHtml, other: otherModalHtml };
+      // 인쇄/PDF에는 창으로 열어야 보이는 상세를 모두 펼쳐서 넣습니다. (화면에서는 숨김)
+      const friendPrintHtml = signalsEx.length === 0 ? "" : `
+        <div class="friend-print bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
           <div>
             <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-200">담보별 진단현황</span>
             <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">기존 계약 기준 다섯 친구</h3>
-            <p class="text-[10px] text-slate-500 mt-0.5">연소득 ${fmt(signalsEx[0].own)} 기준 · 담보마다 권장 금액 대비 현재 가입금액 (50% 미만 부족, 50~99% 주의, 100% 이상 충분, 0은 미가입)</p>
           </div>
-          ${noExisting}
-          <div class="space-y-2">
-            ${signalsEx.map((s) => `
-              <details open class="rounded-xl border border-slate-200">
-                <summary class="cursor-pointer px-2.5 py-2 space-y-1">
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 min-w-0"><span class="w-2.5 h-2.5 rounded-full shrink-0 ${LIGHT[s.status.color].dot}"></span><span class="truncate"><span class="text-[9px] font-bold text-slate-400">${esc(s.order)}</span> ${esc(s.label)}</span></span>
-                    <span class="flex items-center gap-1.5 shrink-0">
-                      <span class="text-[10px] text-slate-500">${s.total ? "충족 " + s.met + "/" + s.total : ""}</span>
-                      <span class="px-1.5 py-0.5 rounded text-[9px] font-extrabold border ${LIGHT[s.status.color].chip}">${s.status.text}</span>
-                      <span class="text-[10px] text-slate-400">▾</span>
-                    </span>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    ${s.pct === null ? `<span class="flex-1"></span>` : `<div class="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden"><div class="${LIGHT[s.status.color].bar} h-1.5 rounded-full" style="width:${Math.min(100, s.pct)}%"></div></div>`}
-                    <span class="text-[9px] text-slate-400 shrink-0">필요 ${s.value === null ? "시장가격" : fmt(s.value)}${s.pct === null ? "" : " · 평균 " + s.pct + "%"}</span>
-                  </div>
-                  <p class="text-[9px] text-slate-400 leading-snug">${esc(s.basis)}</p>
-                </summary>
-                ${s.items.length ? `<div class="px-2 pb-2 space-y-1">${s.items.map(itemRowHtml).join("")}</div>` : ""}
-              </details>`).join("")}
-            ${otherRidersHtml}
-          </div>
+          ${friendModalHtml.map((h) => `<div style="break-inside:avoid;page-break-inside:avoid;" class="rounded-xl border border-slate-200 p-3">${h}</div>`).join("")}
+          ${otherRiders.length ? `<div style="break-inside:avoid;page-break-inside:avoid;" class="rounded-xl border border-slate-200 p-3">${otherModalHtml}</div>` : ""}
         </div>`;
       const flatDiagHtml = `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
@@ -1849,7 +1850,7 @@
           ${noExisting}
           <div class="space-y-1.5">${flatRowsHtml}</div>
         </div>`;
-      const diagHtml = signalsEx.length ? friendDiagHtml : flatDiagHtml;
+      const diagHtml = signalsEx.length ? "" : flatDiagHtml;
 
       // ---- 4. 상품별 가입담보 상세 ----
       const detailCard = (c, isNew) => `
@@ -1896,8 +1897,34 @@
       const openedContracts = contractsRoot ? openState(contractsRoot) : [];
       const summaryRoot = document.getElementById("summaryRoot");
       if (summaryRoot) summaryRoot.innerHTML = summaryHtml;
-      root.innerHTML = (summaryRoot ? "" : summaryHtml) + (signals.length ? friendTrafficHtml : trafficHtml) + diagHtml + (contractsRoot ? "" : holdHtml + productHtml);
+      root.innerHTML = (summaryRoot ? "" : summaryHtml) + (signals.length ? friendTrafficHtml : trafficHtml) + diagHtml + friendPrintHtml + (contractsRoot ? "" : holdHtml + productHtml);
       restoreState(root, openedMain);
+      // 다섯 친구 카드를 누르면 상세 창이 뜹니다 (인쇄·PDF에는 들어가지 않습니다)
+      window.__showFriend = function (key) {
+        const fm = window.__friendModal || {};
+        const html = key === "other" ? fm.other : (fm.friends || [])[Number(key)];
+        let m = document.getElementById("friendModal");
+        if (!html) { if (m) m.style.display = "none"; return; }
+        if (!m) {
+          m = document.createElement("div");
+          m.id = "friendModal";
+          m.className = "no-print";
+          m.style.cssText = "display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:70;background:rgba(15,23,42,.55);align-items:center;justify-content:center;padding:12px;";
+          m.innerHTML = '<div style="background:#fff;width:100%;max-width:480px;max-height:88vh;overflow:auto;border-radius:20px;padding:16px;position:relative;box-shadow:0 20px 50px rgba(15,23,42,.35);"><button type="button" data-friend-close aria-label="닫기" style="position:absolute;top:10px;right:12px;width:30px;height:30px;border-radius:15px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-weight:800;cursor:pointer;">✕</button><div id="friendModalBody" style="padding-top:4px;"></div></div>';
+          m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-friend-close]")) { window.__friendKey = null; m.style.display = "none"; document.body.style.overflow = ""; } });
+          document.addEventListener("keydown", (e) => { if (e.key === "Escape" && window.__friendKey != null) { window.__friendKey = null; m.style.display = "none"; document.body.style.overflow = ""; } });
+          document.body.appendChild(m);
+        }
+        window.__friendKey = key;
+        document.getElementById("friendModalBody").innerHTML = html;
+        m.style.display = "flex";
+        document.body.style.overflow = "hidden";
+      };
+      if (!root.__friendBound) {
+        root.__friendBound = true;
+        root.addEventListener("click", (e) => { const b = e.target.closest("[data-friend]"); if (b) window.__showFriend(b.getAttribute("data-friend")); });
+      }
+      if (window.__friendKey != null) window.__showFriend(window.__friendKey); // 체크박스 등으로 다시 그려도 열려 있는 창 내용을 갱신
       if (contractsRoot) {
         contractsRoot.innerHTML = holdHtml + productHtml;
         restoreState(contractsRoot, openedContracts);
@@ -2018,6 +2045,7 @@
       min-height: 100vh;
       background: #f8fafc;
     }
+    .friend-print { display: none; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     [data-excluded][data-excluded] { display: none !important; }
@@ -2033,6 +2061,8 @@
       header, footer, .no-print, .nav-tabs-bar { display: none !important; }
       .mobile-shell, .wide-shell { max-width: 100% !important; margin: 0 !important; box-shadow: none !important; }
       .view-section { display: block !important; }
+      .friend-print { display: block !important; }
+      .friend-hint { display: none !important; }
     }
   </style>
 </head>
