@@ -1669,9 +1669,26 @@
       const companies = Object.keys(byCompany);
       const cName = DATA.clientName || "고객";
       const pName = DATA.productName || "맞춤 보장 설계안";
+      // 배경 방패 그림: 글자 뒤에 깔리는 장식입니다 (색은 테마 변수 --shA/B/C/G)
+      const shieldDeco = `<svg aria-hidden="true" focusable="false" viewBox="0 0 150 190" width="123" height="156" style="position:absolute;top:4px;right:10px;overflow:visible;pointer-events:none;z-index:0">
+        <defs>
+          <linearGradient id="shGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--shA,#6EC9C3)"/><stop offset=".55" style="stop-color:var(--shB,#3A68E0)"/><stop offset="1" style="stop-color:var(--shC,#1C39BB)"/></linearGradient>
+          <linearGradient id="shHi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+          <radialGradient id="shGlow"><stop offset="0" style="stop-color:var(--shG,#6EC9C3)" stop-opacity=".45"/><stop offset="1" style="stop-color:var(--shG,#6EC9C3)" stop-opacity="0"/></radialGradient>
+          <filter id="shShadow" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#1C39BB" flood-opacity=".3"/></filter>
+        </defs>
+        <circle cx="75" cy="92" r="130" fill="url(#shGlow)"/>
+        <g transform="translate(9 6)" filter="url(#shShadow)">
+          <path d="M66 0 L132 24 V88 C132 132 104 160 66 176 C28 160 0 132 0 88 V24 Z" fill="url(#shGrad)"/>
+          <path d="M66 12 L122 32 V88 C122 126 98 150 66 164 C34 150 10 126 10 88 V32 Z" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/>
+          <path d="M66 0 L132 24 V88 C132 94 131 100 129 106 C98 94 78 64 66 0Z" fill="url(#shHi)" opacity=".5"/>
+        </g>
+        <path d="M41 90 l19 19 l37 -42" fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+        <g fill="#fff"><circle cx="148" cy="170" r="4" opacity=".8"/></g>
+      </svg>`;
       const summaryHtml = `
-        <div class="space-y-3">
-          <div>
+        <div class="space-y-3" style="position:relative;z-index:1">
+          <div style="max-width:calc(100% - 112px);min-width:11rem">
             <span class="px-2 py-0.5 rounded-md bg-white/10 text-teal-200 text-[10px] font-extrabold">계약현황 요약</span>
             <h2 class="text-lg font-extrabold leading-snug mt-1">${esc(cName)}님의 계약현황 요약</h2>
             <p class="text-xs text-teal-200/90 font-medium mt-0.5">${esc(DATA.insuredName ? pName + " · " + DATA.insuredName : pName)}</p>
@@ -1896,7 +1913,7 @@
       const openedMain = openState(root);
       const openedContracts = contractsRoot ? openState(contractsRoot) : [];
       const summaryRoot = document.getElementById("summaryRoot");
-      if (summaryRoot) summaryRoot.innerHTML = summaryHtml;
+      if (summaryRoot) summaryRoot.innerHTML = shieldDeco + summaryHtml;
       root.innerHTML = (summaryRoot ? "" : summaryHtml) + (signals.length ? friendTrafficHtml : trafficHtml) + diagHtml + friendPrintHtml + (contractsRoot ? "" : holdHtml + productHtml);
       restoreState(root, openedMain);
       // 다섯 친구 카드를 누르면 상세 창이 뜹니다 (인쇄·PDF에는 들어가지 않습니다)
@@ -1994,6 +2011,18 @@
             "thead,thead th{background:#" + m.T + "!important}";
         }
       }
+      // 계약현황 요약 배경 방패 색: 테마마다 어울리는 색으로 (A: 윗부분 밝은 색, B: 중간, C: 아랫부분 진한 색, G: 은은한 빛)
+      // 5번째 값: '신규 제안' 칸 배경(방패가 은은하게 비치는 정도), 6번째 값: 칸 뒤 흐림(px, 0이면 없음)
+      const SHIELD = {
+        "default": ["5eead4", "14b8a6", "0f766e", "2dd4bf", "#0b4a4787", 4],
+        tealblue: ["6EC9C3", "2E8FD0", "1C39BB", "6EC9C3", "#ffffffb3", 0],
+        navy: ["A9BEFF", "5C7BF0", "1C39BB", "6A8CFF", "#203a9c87", 4],
+        lightblue: ["6EC9C3", "3A68E0", "1C39BB", "6EC9C3", "#ffffffb3", 0]
+      };
+      const sh = SHIELD[key] || SHIELD["default"];
+      css += "#summaryRoot{--shA:#" + sh[0] + ";--shB:#" + sh[1] + ";--shC:#" + sh[2] + ";--shG:#" + sh[3] + "}" +
+        "#summaryRoot [class*=\"bg-teal-500/20\"]{background:" + sh[4] + "!important}" +
+        (sh[5] ? "#summaryRoot [class*=\"bg-teal-500/20\"],#summaryRoot [class*=\"bg-white/10\"]{-webkit-backdrop-filter:blur(" + sh[5] + "px);backdrop-filter:blur(" + sh[5] + "px)}" : "");
       return cfg + "<style id=\"themeCss\">" + css + "</style>";
     }
 
