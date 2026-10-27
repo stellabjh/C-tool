@@ -2095,6 +2095,11 @@
       /* 인쇄/PDF에서도 화면과 같은 색(배경·그라데이션)이 나오게: 브라우저의 '배경 그래픽' 설정이 꺼져 있어도 포함합니다 */
       html, body, *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { background-color: #fff !important; color: #000 !important; }
+      /* 쪽이 바뀔 때 카드·표의 줄·목록이 반으로 잘리지 않게, 표 머리글은 쪽마다 반복, 제목만 쪽 끝에 남지 않게 */
+      tr, li, details, [class*="rounded-lg"], [class*="rounded-xl"], [class*="rounded-2xl"] { break-inside: avoid; page-break-inside: avoid; }
+      thead { display: table-header-group; }
+      h1, h2, h3, h4 { break-after: avoid; page-break-after: avoid; }
+      .overflow-x-auto { overflow: visible !important; }
       header, footer, .no-print, .nav-tabs-bar { display: none !important; }
       .mobile-shell, .wide-shell { max-width: 100% !important; margin: 0 !important; box-shadow: none !important; }
       .view-section { display: block !important; }
