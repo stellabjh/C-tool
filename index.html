@@ -2161,7 +2161,6 @@
 
     <!-- VIEW: 보장분석신호등 (신호등 / 담보별 진단현황) -->
     <section id="view-status" class="view-section p-4 space-y-4">
-      <div id="statusRoot" class="space-y-4"></div>
       ${editMode ? `<details id="historyBlock" data-print-excluded="1" class="rounded-2xl bg-white border border-orange-200 shadow-sm">
         <summary class="cursor-pointer select-none px-4 py-3 text-[12px] font-extrabold text-orange-700">🔒 📚 보험 변천사 (건강보험 · 치매간병 · 운전자보험) ▾</summary>
         <div class="px-3 pb-4 space-y-3">
@@ -2169,6 +2168,7 @@
           <div id="historyRoot" class="space-y-3"></div>
         </div>
       </details>` : ""}
+      <div id="statusRoot" class="space-y-4"></div>
     </section>
 
     <!-- VIEW: 계약·담보 현황 (보유 계약현황 / 상품별 가입담보 상세) -->
