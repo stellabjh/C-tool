@@ -432,7 +432,7 @@
       agentComment: "",
       profile: { jobType: "근로소득자", income: "5000" },
       heroMetrics: [],
-      includeTabs: { status: true, contracts: true, silson: true, compare: true, history: true },
+      includeTabs: { status: true, contracts: true, silson: true, compare: true },
       includeSections: { silsonTable: true, silsonMine: true, silsonSwitch: true, silsonCompare: true },
       silson: { generation: "auto" },
       theme: "default",
@@ -2077,11 +2077,11 @@
         <button data-view="view-silson" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           🏥 실손의료비
         </button>
+        ${editMode ? `<button data-view="view-history" data-print-excluded="1" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
+          🔒 📚 보험 변천사
+        </button>` : ""}
         <button data-view="view-compare" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           ⚖️ 계약·비교
-        </button>
-        <button data-view="view-history" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
-          📚 보험 변천사
         </button>
       </div>
     </div>
@@ -2177,10 +2177,10 @@
       <div id="silsonRoot" class="space-y-4"></div>
     </section>
 
-    <!-- 보험 변천사: 건강보험 · 치매간병 · 운전자보험 -->
-    <section id="view-history" class="view-section hidden p-4 space-y-4">
+    ${editMode ? `<section id="view-history" data-print-excluded="1" class="view-section hidden p-4 space-y-4">
+      <div class="no-print" style="margin:0 0 4px;padding:8px 12px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#c2410c;font-size:11px;font-weight:700;">🔒 설계사용 화면 · 고객 리포트, 인쇄/PDF, 다운로드 파일에는 포함되지 않습니다</div>
       <div id="historyRoot" class="space-y-3"></div>
-    </section>
+    </section>` : ""}
 
   </div>
 
@@ -2487,12 +2487,12 @@
     ${computeFiveFriends.toString()}
     ${computeFriendSignals.toString()}
     const SILSON_DATA = ${JSON.stringify(SILSON_DATA).replace(/</g, "\\u003c")};
-    const HISTORY_DATA = ${JSON.stringify(HISTORY_DATA).replace(/</g, "\\u003c")};
+    ${editMode ? `const HISTORY_DATA = ${JSON.stringify(HISTORY_DATA).replace(/</g, "\\u003c")};
+    ${renderHistoryView.toString()}` : ""}
     ${renderSilsonView.toString()}
-    ${renderHistoryView.toString()}
     ${renderStatusViews.toString()}
     renderCompareView();
-    renderHistoryView();
+    ${editMode ? "renderHistoryView();" : ""}
 
     // 탭 전환
     document.querySelectorAll(".nav-btn").forEach(btn => {
@@ -2511,8 +2511,8 @@
     // 설계사가 고른 화면만 고객에게 보여줍니다. (제외한 화면은 탭과 내용, 인쇄에서도 빠짐)
     // 미리보기(편집 모드)에서는 탭 이름 옆 체크박스로 포함 여부를 고르고, 고객용 파일에는 체크박스가 없습니다.
     (function () {
-      const inc = Object.assign({ status: true, contracts: true, silson: true, compare: true, history: true }, DATA.includeTabs || {});
-      const map = { status: "view-status", contracts: "view-contracts", silson: "view-silson", compare: "view-compare", history: "view-history" };
+      const inc = Object.assign({ status: true, contracts: true, silson: true, compare: true }, DATA.includeTabs || {});
+      const map = { status: "view-status", contracts: "view-contracts", silson: "view-silson", compare: "view-compare" };
       const keys = Object.keys(map);
       // 계약·비교 탭의 '기존 가입 계약 목록'과 '새로운 제안 계약 목록'은 설계사가 체크하며 비교할 때만 쓰는 영역입니다.
       // 고객용 파일에는 넣지 않고(비교분석표와 합계만 남김), 미리보기에는 안내를 달아 보여줍니다.
