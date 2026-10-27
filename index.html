@@ -1855,8 +1855,8 @@
             <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-200">담보별 진단현황</span>
             <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">기존 계약 기준 다섯 친구</h3>
           </div>
-          ${friendModalHtml.map((h) => `<div style="break-inside:avoid;page-break-inside:avoid;" class="rounded-xl border border-slate-200 p-3">${h}</div>`).join("")}
-          ${otherRiders.length ? `<div style="break-inside:avoid;page-break-inside:avoid;" class="rounded-xl border border-slate-200 p-3">${otherModalHtml}</div>` : ""}
+          ${friendModalHtml.map((h) => `<div class="friend-blk rounded-xl border border-slate-200 p-3">${h}</div>`).join("")}
+          ${otherRiders.length ? `<div class="friend-blk rounded-xl border border-slate-200 p-3">${otherModalHtml}</div>` : ""}
         </div>`;
       const flatDiagHtml = `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
@@ -2000,7 +2000,13 @@
             "#summaryRoot .text-white,#summaryRoot .text-slate-100,#summaryRoot .text-slate-300,#summaryRoot .text-slate-400{color:#" + m.T + "!important}" +
             "#summaryRoot [class*=\"text-teal\"]{color:#" + m.ACC + "!important}" +
             "#summaryRoot [class*=\"bg-white\"],#summaryRoot [class*=\"bg-slate-950\"]{background:#fff!important;border-color:#" + m.B + "!important}" +
-            "#summaryRoot [class*=\"bg-teal-500\"]{background:#ffffffb3!important;border-color:#" + m.ACC + "66!important}";
+            "#summaryRoot [class*=\"bg-teal-500\"]{background:#ffffffb3!important;border-color:#" + m.ACC + "66!important}" +
+            // 인쇄/PDF: 밝은 테마에서는 '실시간 비교' 상자도 요약 카드처럼 밝은 색으로 (화면은 그대로)
+            "@media print{#compareSumBar{background:linear-gradient(135deg,#" + m.A + ",#" + m.B + ")!important;color:#" + m.T + "!important}" +
+            "#compareSumBar .text-white,#compareSumBar [class*=\"text-slate-\"]{color:#" + m.T + "!important}" +
+            "#compareSumBar [class*=\"text-teal\"]{color:#" + m.ACC + "!important}" +
+            "#compareSumBar [class*=\"bg-slate-950\"],#compareSumBar [class*=\"bg-teal-500\"]{background:#fff!important;border-color:#" + m.B + "!important}" +
+            "#compareSumBar .border-b{border-color:#" + m.B + "!important}}";
         } else if (t.top) {
           const m = t.top;
           css += "body{background:#" + m.PG + "!important}" +
@@ -2086,11 +2092,21 @@
     details > summary::-webkit-details-marker { display: none; }
 
     @media print {
+      /* 인쇄/PDF에서도 화면과 같은 색(배경·그라데이션)이 나오게: 브라우저의 '배경 그래픽' 설정이 꺼져 있어도 포함합니다 */
+      html, body, *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { background-color: #fff !important; color: #000 !important; }
+      /* 쪽이 바뀔 때 카드·표의 줄·목록이 반으로 잘리지 않게, 표 머리글은 쪽마다 반복, 제목만 쪽 끝에 남지 않게 */
+      tr, li, details, [class*="rounded-lg"], [class*="rounded-xl"], [class*="rounded-2xl"] { break-inside: avoid; page-break-inside: avoid; }
+      thead { display: table-header-group; }
+      h1, h2, h3, h4 { break-after: avoid; page-break-after: avoid; }
+      .overflow-x-auto { overflow: visible !important; }
       header, footer, .no-print, .nav-tabs-bar { display: none !important; }
       .mobile-shell, .wide-shell { max-width: 100% !important; margin: 0 !important; box-shadow: none !important; }
-      .view-section { display: block !important; }
+      .view-section { display: block !important; break-before: page; page-break-before: always; }
+      .view-section[data-print-first] { break-before: auto; page-break-before: auto; }
       .friend-print { display: block !important; }
+      /* 신호등 아래 막대그래프(담보별 진단현황)는 신호등에 이어서 쪽 구분 없이 계속 인쇄 (담보 한 줄은 쪼개지지 않음) */
+      .friend-print, .friend-blk { break-inside: auto !important; page-break-inside: auto !important; }
       .friend-hint { display: none !important; }
     }
   </style>
@@ -2146,7 +2162,7 @@
     <section id="view-compare" class="view-section hidden p-4 space-y-4">
       
       <!-- 상단 실시간 보험료 합산 시뮬레이터 요약 바 -->
-      <div class="bg-slate-900 text-white rounded-2xl p-4 shadow-md space-y-3">
+      <div id="compareSumBar" class="bg-slate-900 text-white rounded-2xl p-4 shadow-md space-y-3">
         <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
           <div>
             <h2 class="text-sm font-extrabold text-white mt-1">계약 및 담보 선택별 실시간 비교</h2>
@@ -2550,6 +2566,16 @@
     ${renderStatusViews.toString()}
     renderCompareView();
     ${editMode ? "renderHistoryView();" : ""}
+
+    // 인쇄/PDF: 항목(화면)마다 새 쪽에서 시작합니다. 맨 앞에 나오는 항목만 요약 카드와 같은 쪽에 붙입니다.
+    window.addEventListener("beforeprint", function () {
+      var first = null;
+      document.querySelectorAll(".view-section").forEach(function (el) {
+        el.removeAttribute("data-print-first");
+        if (!first && !el.hasAttribute("data-excluded") && !el.hasAttribute("data-print-excluded")) first = el;
+      });
+      if (first) first.setAttribute("data-print-first", "1");
+    });
 
     // 탭 전환
     document.querySelectorAll(".nav-btn").forEach(btn => {
