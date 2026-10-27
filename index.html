@@ -1855,8 +1855,8 @@
             <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-extrabold border border-indigo-200">담보별 진단현황</span>
             <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">기존 계약 기준 다섯 친구</h3>
           </div>
-          ${friendModalHtml.map((h) => `<div style="break-inside:avoid;page-break-inside:avoid;" class="rounded-xl border border-slate-200 p-3">${h}</div>`).join("")}
-          ${otherRiders.length ? `<div style="break-inside:avoid;page-break-inside:avoid;" class="rounded-xl border border-slate-200 p-3">${otherModalHtml}</div>` : ""}
+          ${friendModalHtml.map((h) => `<div class="friend-blk rounded-xl border border-slate-200 p-3">${h}</div>`).join("")}
+          ${otherRiders.length ? `<div class="friend-blk rounded-xl border border-slate-200 p-3">${otherModalHtml}</div>` : ""}
         </div>`;
       const flatDiagHtml = `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-2.5">
@@ -2105,6 +2105,8 @@
       .view-section { display: block !important; break-before: page; page-break-before: always; }
       .view-section[data-print-first] { break-before: auto; page-break-before: auto; }
       .friend-print { display: block !important; }
+      /* 신호등 아래 막대그래프(담보별 진단현황)는 신호등에 이어서 쪽 구분 없이 계속 인쇄 (담보 한 줄은 쪼개지지 않음) */
+      .friend-print, .friend-blk { break-inside: auto !important; page-break-inside: auto !important; }
       .friend-hint { display: none !important; }
     }
   </style>
