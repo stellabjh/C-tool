@@ -2077,9 +2077,6 @@
         <button data-view="view-silson" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           🏥 실손의료비
         </button>
-        ${editMode ? `<button data-view="view-history" data-print-excluded="1" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
-          🔒 📚 보험 변천사
-        </button>` : ""}
         <button data-view="view-compare" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           ⚖️ 계약·비교
         </button>
@@ -2165,6 +2162,13 @@
     <!-- VIEW: 보장분석신호등 (신호등 / 담보별 진단현황) -->
     <section id="view-status" class="view-section p-4 space-y-4">
       <div id="statusRoot" class="space-y-4"></div>
+      ${editMode ? `<details id="historyBlock" data-print-excluded="1" class="rounded-2xl bg-white border border-orange-200 shadow-sm">
+        <summary class="cursor-pointer select-none px-4 py-3 text-[12px] font-extrabold text-orange-700">🔒 📚 보험 변천사 (건강보험 · 치매간병 · 운전자보험) ▾</summary>
+        <div class="px-3 pb-4 space-y-3">
+          <div class="no-print" style="padding:8px 12px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#c2410c;font-size:11px;font-weight:700;">🔒 설계사용 화면 · 고객 리포트, 인쇄/PDF, 다운로드 파일에는 포함되지 않습니다</div>
+          <div id="historyRoot" class="space-y-3"></div>
+        </div>
+      </details>` : ""}
     </section>
 
     <!-- VIEW: 계약·담보 현황 (보유 계약현황 / 상품별 가입담보 상세) -->
@@ -2176,12 +2180,6 @@
     <section id="view-silson" class="view-section hidden p-4 space-y-4">
       <div id="silsonRoot" class="space-y-4"></div>
     </section>
-
-    ${editMode ? `<section id="view-history" data-print-excluded="1" class="view-section hidden p-4 space-y-4">
-      <div class="no-print" style="margin:0 0 4px;padding:8px 12px;border-radius:12px;background:#fff7ed;border:1px solid #fed7aa;color:#c2410c;font-size:11px;font-weight:700;">🔒 설계사용 화면 · 고객 리포트, 인쇄/PDF, 다운로드 파일에는 포함되지 않습니다</div>
-      <div id="historyRoot" class="space-y-3"></div>
-    </section>` : ""}
-
   </div>
 
   <!-- Sticky Bottom Consultant Bar -->
