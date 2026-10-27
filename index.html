@@ -2086,6 +2086,8 @@
     details > summary::-webkit-details-marker { display: none; }
 
     @media print {
+      /* 인쇄/PDF에서도 화면과 같은 색(배경·그라데이션)이 나오게: 브라우저의 '배경 그래픽' 설정이 꺼져 있어도 포함합니다 */
+      html, body, *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { background-color: #fff !important; color: #000 !important; }
       header, footer, .no-print, .nav-tabs-bar { display: none !important; }
       .mobile-shell, .wide-shell { max-width: 100% !important; margin: 0 !important; box-shadow: none !important; }
