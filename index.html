@@ -432,7 +432,7 @@
       agentComment: "",
       profile: { jobType: "근로소득자", income: "5000" },
       heroMetrics: [],
-      includeTabs: { status: true, contracts: true, silson: true, compare: true },
+      includeTabs: { status: true, contracts: true, silson: true, compare: true, history: true },
       includeSections: { silsonTable: true, silsonMine: true, silsonSwitch: true, silsonCompare: true },
       silson: { generation: "auto" },
       theme: "default",
@@ -1279,6 +1279,145 @@
       }
     };
 
+    // 보험 변천사 (건강보험 · 치매간병 · 운전자보험). 고객 화면의 '보험 변천사' 탭에서 보여줍니다.
+    // 각 항목: [표지(없으면 ""), 제목, 설명]. 개별 계약은 해당 시점의 약관으로 확인해야 합니다.
+    const HISTORY_DATA = {
+      topics: [
+        {
+          key: "health", name: "건강보험", title: "건강보험의 시대별 변천",
+          intro: "사망 보장 중심에서 진단비, 그리고 주요치료비 중심의 모듈형 보장으로 바뀌어 온 흐름입니다.",
+          source: "건강보험 변천사",
+          eras: [
+            { period: "2000년 이전", name: "시장의 태동과 '보장'의 확립", items: [
+              ["시장", "종신보험 시장 추격", "외국계 보험사가 선점한 종신보험 시장을 국내 생명보험사가 추격."],
+              ["상품", "사망 보장 중심", "전통적 기능에 집중한 단순한 상품 구조."]
+            ] },
+            { period: "2000~2020년", name: "성장과 포화, '저금리'의 습격", items: [
+              ["2000년", "국민건강보험공단 설립, 실손의료보험 등장", "공보험 자기부담금을 보전하기 위한 민영 건강보험 수요가 늘어남."],
+              ["Phase 1", "진단비 중심", "3대 질병(암·뇌·심장) 진단 일시금 중심. 치료법이 표준화돼 진단비만으로 비용을 감당할 수 있던 시기."],
+              ["Phase 2", "치료과정 관리", "표적항암·세기조절방사선(IMRT) 등 고가 신의료기술이 비급여로 늘면서 실손만으로 감당이 어려워지고, 특정 치료행위를 직접 보장하는 특약이 출시됨."]
+            ] },
+            { period: "2020년 이후", name: "시장의 근본적 재편", items: [
+              ["동인", "4대 핵심 동인", "인구구조 변화(초고령·저출산), 저금리 고착화, IFRS17 도입(CSM 중심), GA 영향력 확대."],
+              ["2021년", "보장공백 보완 특약 급증", "3·4세대 실손 이후 비급여 자기부담 비율이 늘며 생긴 공백을 메우는 특약 개발이 급증."],
+              ["2023년", "IFRS17 시행", "CSM 중심 수익인식으로 보험사가 보장성보험 판매에 치중하면서 건강보험이 확대됨."],
+              ["GA", "비교 판매 활성화", "생보 초회보험료 35% 이상, 손보 신계약 60% 육박. 맞춤설계가 가능해졌지만 복잡성 증가로 불완전판매 위험도 상승."]
+            ] },
+            { period: "2025년 현황", name: "모듈형 보장의 정밀화 (Phase 3)", items: [
+              ["", "전환진단비 퇴조, 주요치료비 중심", "표적항암·IMRT 등 주요치료비 특약이 반복 치료를 보장하며 고액 비급여 치료비를 대체."],
+              ["세분화", "상급병원·비급여·1~5종 수술비 특약", "상급종합병원 선호와 비급여 상승에 따라 특약이 세분화. 수술비 특약은 손해율 상승으로 보험료 인상 시작."],
+              ["암", "암 주요치료비 특약 다수 출시", "비급여 항목을 연간 1억원 한도로 보장하는 상품도 등장."],
+              ["주의", "보장 중복·공백 가능성", "특약 복잡화로 선택권은 늘었지만 보장 간 중복과 공백을 알아채기 어려워짐."]
+            ] },
+            { period: "2026년 전망", name: "초정밀화·헬스케어 결합", items: [
+              ["수요", "실손 보장축소에 따른 보완 수요 급증", "도수치료 제외, 자기부담 인상 등으로 생긴 공백을 메우는 특화 건강보험이 핵심 상품으로 부상."],
+              ["3세대", "'초개인화' 건강보험", "특정 신약(예: 레켐비), 유전체 정보 등과 결합한 더 정밀한 보장으로 세분화될 전망."],
+              ["헬스테크", "인슈어테크 융합", "AI 인수심사, 빅데이터 기반 보험금 심사, 원격의료 보장 상품 증가 예상."]
+            ] }
+          ]
+        },
+        {
+          key: "care", name: "치매간병", title: "치매간병보험의 세대별 변천",
+          intro: "중증치매 진단비만 주던 초기 상품에서 경도인지장애·장기요양등급·재가/시설 급여까지 보장하는 통합형으로 발전했습니다.",
+          source: "치매간병보험 변천사",
+          eras: [
+            { period: "1세대 · 2008~2011년", name: "초기 치매보험", items: [
+              ["2008년", "초기 치매보험 출시", "중증치매(CDR 3점 이상) 진단비 중심, 최대 2,000만원 한도."],
+              ["", "구조", "특약 형태로만 제공. 단독 치매보험 없음, 치매 단계 구분 없음, 장기요양등급 보장 없음. 65세 이상 가입 제한적."]
+            ] },
+            { period: "2세대 · 2012~2018년", name: "확장형 치매보험", items: [
+              ["2012년", "단독상품 등장·장기요양등급 연계", "경증(CDR 1~2점)/중증(CDR 3점 이상) 구분 보장 시작, 장기요양 1~2등급 연계."],
+              ["2016년", "장기요양 1~4등급으로 확대", "보험기간 80세 → 90세 → 종신, 가입연령 65세 → 70세 → 75세로 확대."],
+              ["보장 수준", "중증 2,000만원, 경증 500만원", "치매진단비와 생활자금을 분리해 지급."]
+            ] },
+            { period: "3세대 · 2019~2022년", name: "맞춤형 치매보험", items: [
+              ["2019년", "경도인지장애(CDR 0.5) 보장 시작", "경도/중등도/중증 단계별 진단비 차등화, 치매 검사비용 보장."],
+              ["2021년", "LTC 장기요양 특약 도입", "장기요양 1~5등급 보장, 간병서비스 특약 등장. 국민건강보험 장기요양등급 연계 체계 확립."],
+              ["보장 수준", "경증 1,000만원, 중증 최대 3,000만원", "생활자금 월 50~150만원 추가."]
+            ] },
+            { period: "4세대 · 2023년~현재", name: "통합형 LTC보험", items: [
+              ["2023년", "체증형 LTC 특약 도입", "계약 10년 후 보장금액 50% 증액. 재가/시설 급여 특화 특약, 부모추가 특약 확대."],
+              ["범위", "인지지원등급~1등급 전범위", "치매 예방부터 진단·간병까지 생애주기 전반을 보장."],
+              ["", "재가/시설급여 이용 시 월 지급금", "재가급여(방문요양·방문간호·주야간보호 등), 시설급여(요양시설 입소)는 재가보다 보장금액 상향."],
+              ["부모추가", "71~75세 부모 함께 보장", "자녀가 간병보험에 가입할 때 가입이 어려운 고령 부모도 함께 보장."],
+              ["보장 수준", "중증 최대 4,000만원", "중등도 2,000만원, 경증 1,500만원 수준, 생활자금 보장 확대."]
+            ] }
+          ]
+        },
+        {
+          key: "driver", name: "운전자보험", title: "운전자보험 주요 시점별 변천",
+          intro: "법 개정과 합의금 상승에 맞춰 교통사고처리지원금·벌금·변호사비용 한도가 바뀌어 왔습니다. 가입 시기에 따라 한도가 최대 2~4배 차이 납니다.",
+          source: "운전자보험 변천사",
+          eras: [
+            { period: "2009~2014년", name: "도입과 보장 확대", items: [
+              ["2009.09", "운전자보험 최초 도입", "교통사고처리특례법에 따른 가해 운전자 보호 목적으로 교통사고처리지원금 담보 신설. 사망 1억원, 6주 미만 500만원, 변호사 선임비 500만원."],
+              ["2009.10", "중상해·자차동승자 보장 추가", "이전 상품의 보상 사각지대를 보완."],
+              ["2014.01", "벌금 대물부분·부상치료비 4~11급 신설", "운전자 자신의 부상까지 세분화해 보장."],
+              ["2014.09", "교통사고처리지원금 강화", "합의금 증가 추세를 반영해 한도 상향."]
+            ] },
+            { period: "2018~2020년", name: "합의금 상향과 민식이법", items: [
+              ["2018.09", "중상해 합의금 상향", "사망 1억3천만원, 변호사 선임비 3천만원. 2009년 대비 합의금 한도 30% 이상 상승."],
+              ["2019.06", "스쿨존 사고 보장 추가", "어린이 6주 미만 치료 포함. 민식이법 시행(2020.03) 대비 선제적 강화."],
+              ["2020.04", "벌금 상한 3,000만원", "특정범죄가중처벌법 개정. 음주·뺑소니 등 중대사고 벌금 상향에 대응."]
+            ] },
+            { period: "2022~2024년", name: "한도 상향과 초기 대응", items: [
+              ["2022.07", "교통사고처리지원금 대폭 상향", "사망 2억원, 6주 미만 800만원, 6~10주 2천만원, 10~20주 8천만원."],
+              ["2023.01", "경상환자(12~14급) 치료비 체계 변경", "과실비율에 따라 차등 지급. 경미사고 후 장기치료 청구 증가가 배경."],
+              ["2023.02", "변호사 선임비 5천만원", "보험사별 신규 담보 확대로 상품 비교 필요성 증가."],
+              ["2024.01", "경찰조사 단계부터 변호사비용", "비탑승 중(주차장 등) 사고 보장 추가, 6주 미만 1,000만원. 기존 보험은 기소 이후만 보장."],
+              ["2024.11", "교통사고처리특례법 개정", "처벌 강화·범위 확대. 음주운전 벌금 최대 5,000만원."]
+            ] },
+            { period: "2026년~", name: "변호사비용 보장 축소", items: [
+              ["2026.01", "심급별 500만원 한도 · 자기부담 50%", "1심 변호사비 1,000만원이면 한도 500만원의 50%만 지급돼 보험금 250만원, 본인 부담 750만원."],
+              ["", "점검법 개정 주기(2~3년)에 맞춘 업데이트", "형사합의금 매년 10~15% 상승. 한도를 갱신하지 않으면 보장 공백이 생김."]
+            ] }
+          ]
+        }
+      ]
+    };
+
+    function renderHistoryView() {
+      const root = document.getElementById("historyRoot");
+      if (!root) return;
+      const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const topics = HISTORY_DATA.topics;
+      const cur = topics.find((t) => t.key === window.__histSel) || topics[0];
+      if (!root.__bound) {
+        root.__bound = true;
+        root.addEventListener("click", (e) => {
+          const b = e.target.closest("[data-hist]");
+          if (b) { window.__histSel = b.getAttribute("data-hist"); renderHistoryView(); }
+        });
+      }
+      const chips = topics.map((t) => {
+        const on = t.key === cur.key;
+        return '<button type="button" data-hist="' + t.key + '" class="shrink-0 rounded-xl border px-4 py-2 text-[12px] font-extrabold transition ' +
+          (on ? "bg-slate-900 text-white border-slate-900 shadow" : "bg-white text-slate-700 border-slate-200 hover:border-teal-400") + '">' + esc(t.name) + "</button>";
+      }).join("");
+      const eras = cur.eras.map((era) => {
+        const items = era.items.map((it) =>
+          '<li class="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5">' +
+          '<div class="flex flex-wrap items-center gap-1.5">' +
+          (it[0] ? '<span class="shrink-0 rounded-md bg-teal-50 text-teal-700 border border-teal-200 px-1.5 py-0.5 text-[10px] font-extrabold">' + esc(it[0]) + "</span>" : "") +
+          '<span class="text-[12.5px] font-extrabold text-slate-900">' + esc(it[1]) + "</span></div>" +
+          '<p class="mt-1 text-[11.5px] leading-relaxed text-slate-600">' + esc(it[2]) + "</p></li>"
+        ).join("");
+        return '<section class="rounded-2xl bg-white border border-slate-200 shadow-sm p-4">' +
+          '<div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-2.5">' +
+          '<span class="rounded-full bg-slate-900 text-white px-2.5 py-0.5 text-[11px] font-extrabold">' + esc(era.period) + "</span>" +
+          '<h4 class="text-[13px] font-extrabold text-slate-900">' + esc(era.name) + "</h4></div>" +
+          '<ul class="space-y-2 md:grid md:grid-cols-2 md:gap-2 md:space-y-0">' + items + "</ul></section>";
+      }).join("");
+      root.innerHTML =
+        '<div class="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">' + chips + "</div>" +
+        '<div class="rounded-2xl bg-white border border-slate-200 shadow-sm p-4">' +
+        '<span class="inline-block rounded-full bg-slate-900 text-white px-2.5 py-0.5 text-[10px] font-extrabold mb-1.5">📚 보험 변천사</span>' +
+        '<h3 class="text-base font-extrabold text-slate-900">' + esc(cur.title) + "</h3>" +
+        '<p class="mt-1 text-[11.5px] leading-relaxed text-slate-500">' + esc(cur.intro) + "</p></div>" +
+        eras +
+        '<p class="text-[10.5px] text-slate-400 px-1">출처: ' + esc(cur.source) + ". 개별 계약은 해당 시점의 약관으로 확인하십시오.</p>";
+    }
+
     function renderSilsonView(DATA, existingList, sel) {
       const root = document.getElementById("silsonRoot");
       if (!root) return;
@@ -1941,6 +2080,9 @@
         <button data-view="view-compare" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
           ⚖️ 계약·비교
         </button>
+        <button data-view="view-history" class="nav-btn py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:text-slate-900 transition">
+          📚 보험 변천사
+        </button>
       </div>
     </div>
 
@@ -2033,6 +2175,11 @@
     <!-- 실손의료비: 가입 세대 분석 + 5세대 전환 비교 -->
     <section id="view-silson" class="view-section hidden p-4 space-y-4">
       <div id="silsonRoot" class="space-y-4"></div>
+    </section>
+
+    <!-- 보험 변천사: 건강보험 · 치매간병 · 운전자보험 -->
+    <section id="view-history" class="view-section hidden p-4 space-y-4">
+      <div id="historyRoot" class="space-y-3"></div>
     </section>
 
   </div>
@@ -2340,9 +2487,12 @@
     ${computeFiveFriends.toString()}
     ${computeFriendSignals.toString()}
     const SILSON_DATA = ${JSON.stringify(SILSON_DATA).replace(/</g, "\\u003c")};
+    const HISTORY_DATA = ${JSON.stringify(HISTORY_DATA).replace(/</g, "\\u003c")};
     ${renderSilsonView.toString()}
+    ${renderHistoryView.toString()}
     ${renderStatusViews.toString()}
     renderCompareView();
+    renderHistoryView();
 
     // 탭 전환
     document.querySelectorAll(".nav-btn").forEach(btn => {
@@ -2361,8 +2511,8 @@
     // 설계사가 고른 화면만 고객에게 보여줍니다. (제외한 화면은 탭과 내용, 인쇄에서도 빠짐)
     // 미리보기(편집 모드)에서는 탭 이름 옆 체크박스로 포함 여부를 고르고, 고객용 파일에는 체크박스가 없습니다.
     (function () {
-      const inc = Object.assign({ status: true, contracts: true, silson: true, compare: true }, DATA.includeTabs || {});
-      const map = { status: "view-status", contracts: "view-contracts", silson: "view-silson", compare: "view-compare" };
+      const inc = Object.assign({ status: true, contracts: true, silson: true, compare: true, history: true }, DATA.includeTabs || {});
+      const map = { status: "view-status", contracts: "view-contracts", silson: "view-silson", compare: "view-compare", history: "view-history" };
       const keys = Object.keys(map);
       // 계약·비교 탭의 '기존 가입 계약 목록'과 '새로운 제안 계약 목록'은 설계사가 체크하며 비교할 때만 쓰는 영역입니다.
       // 고객용 파일에는 넣지 않고(비교분석표와 합계만 남김), 미리보기에는 안내를 달아 보여줍니다.
