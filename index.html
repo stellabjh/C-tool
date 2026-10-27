@@ -2000,7 +2000,13 @@
             "#summaryRoot .text-white,#summaryRoot .text-slate-100,#summaryRoot .text-slate-300,#summaryRoot .text-slate-400{color:#" + m.T + "!important}" +
             "#summaryRoot [class*=\"text-teal\"]{color:#" + m.ACC + "!important}" +
             "#summaryRoot [class*=\"bg-white\"],#summaryRoot [class*=\"bg-slate-950\"]{background:#fff!important;border-color:#" + m.B + "!important}" +
-            "#summaryRoot [class*=\"bg-teal-500\"]{background:#ffffffb3!important;border-color:#" + m.ACC + "66!important}";
+            "#summaryRoot [class*=\"bg-teal-500\"]{background:#ffffffb3!important;border-color:#" + m.ACC + "66!important}" +
+            // 인쇄/PDF: 밝은 테마에서는 '실시간 비교' 상자도 요약 카드처럼 밝은 색으로 (화면은 그대로)
+            "@media print{#compareSumBar{background:linear-gradient(135deg,#" + m.A + ",#" + m.B + ")!important;color:#" + m.T + "!important}" +
+            "#compareSumBar .text-white,#compareSumBar [class*=\"text-slate-\"]{color:#" + m.T + "!important}" +
+            "#compareSumBar [class*=\"text-teal\"]{color:#" + m.ACC + "!important}" +
+            "#compareSumBar [class*=\"bg-slate-950\"],#compareSumBar [class*=\"bg-teal-500\"]{background:#fff!important;border-color:#" + m.B + "!important}" +
+            "#compareSumBar .border-b{border-color:#" + m.B + "!important}}";
         } else if (t.top) {
           const m = t.top;
           css += "body{background:#" + m.PG + "!important}" +
@@ -2148,7 +2154,7 @@
     <section id="view-compare" class="view-section hidden p-4 space-y-4">
       
       <!-- 상단 실시간 보험료 합산 시뮬레이터 요약 바 -->
-      <div class="bg-slate-900 text-white rounded-2xl p-4 shadow-md space-y-3">
+      <div id="compareSumBar" class="bg-slate-900 text-white rounded-2xl p-4 shadow-md space-y-3">
         <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
           <div>
             <h2 class="text-sm font-extrabold text-white mt-1">계약 및 담보 선택별 실시간 비교</h2>
