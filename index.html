@@ -1896,31 +1896,97 @@
           </details>
         </div>`;
 
-      // ---- 2. 보유 계약현황 ----
+      // ---- 2. 보유 계약현황: 회사별로 나누고, 상품을 누르면 그 상품의 담보 내역이 창으로 뜹니다 ----
+      const compOf = (c) => String(c.company || "").trim() || "기타";
+      const compGroups = [];
+      existingList.forEach((c, i) => {
+        const k = compOf(c);
+        let g = compGroups.find((x) => x.name === k);
+        if (!g) { g = { name: k, items: [] }; compGroups.push(g); }
+        g.items.push({ c, i });
+      });
+      const riderTableHtml = (c) => `
+          <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left border-collapse text-[11px]">
+              <thead><tr class="bg-slate-50 text-slate-500 font-bold"><th class="py-1.5 px-2">담보명</th><th class="py-1.5 px-2 text-right">가입금액</th><th class="py-1.5 px-2">감액/면책</th></tr></thead>
+              <tbody class="divide-y divide-slate-100">
+                ${(c.riders || []).length === 0 ? `<tr><td colspan="3" class="py-3 px-2 text-center text-slate-400">등록된 담보가 없습니다.</td></tr>` : ""}
+                ${(c.riders || []).map((r) => `
+                  <tr class="${r.checked ? "" : "opacity-40 line-through"}">
+                    <td class="py-1.5 px-2"><span class="text-[9px] font-bold text-slate-400">[${esc(r.cat || "기타")}]</span><p class="font-bold text-slate-800">${esc(r.name)}</p>${r.riderPrem ? `<p class="text-[9px] text-slate-400">보험료 ${esc(r.riderPrem)}</p>` : ""}${r.amountCheck ? `<p class="text-[9px] text-amber-700 font-bold">⚠️ 금액 확인 필요</p>` : ""}</td>
+                    <td class="py-1.5 px-2 text-right font-extrabold text-slate-900 whitespace-nowrap">${esc(r.amount)}</td>
+                    <td class="py-1.5 px-2 text-slate-600">${esc(r.reductionPeriod || "-")}${r.reductionAmount ? `<p class="text-[10px] text-amber-700 font-bold">${esc(r.reductionAmount)}</p>` : ""}</td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>`;
+      const contractInfoHtml = (c) => `
+          <div class="grid grid-cols-2 gap-1.5 text-[11px]">
+            <div class="rounded-lg bg-slate-50 border border-slate-200/80 px-2.5 py-1.5"><p class="text-[9px] text-slate-400">계약일</p><p class="font-bold text-slate-800">${esc(c.contractDate || "-")}</p></div>
+            <div class="rounded-lg bg-slate-50 border border-slate-200/80 px-2.5 py-1.5"><p class="text-[9px] text-slate-400">납입/만기</p><p class="font-bold text-slate-800">${esc(c.period || "-")}</p></div>
+            <div class="rounded-lg bg-slate-50 border border-slate-200/80 px-2.5 py-1.5"><p class="text-[9px] text-slate-400">월 보험료</p><p class="font-extrabold text-slate-900">${esc(c.premium || "-")}</p></div>
+            <div class="rounded-lg bg-slate-50 border border-slate-200/80 px-2.5 py-1.5"><p class="text-[9px] text-slate-400">상태 · 담보 수</p><p class="font-bold text-slate-800">${c.status ? esc(c.status) + " · " : ""}${(c.riders || []).length}개</p></div>
+          </div>`;
       const holdHtml = `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
           <div>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold">보유 계약현황</span>
             <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">현재 가입 중인 계약</h3>
+            <p class="contract-hint text-[10px] text-slate-500 mt-0.5">보험사별로 나뉘어 있습니다. 상품을 누르면 그 상품의 담보 내역이 보입니다.</p>
           </div>
           ${existingList.length === 0 ? `<div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-400 text-center">등록된 기존 계약이 없습니다.</div>` : `
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse text-[11px]">
-              <thead><tr class="bg-slate-100 text-slate-600 font-extrabold">
-                <th class="py-2 px-2 rounded-tl-lg">보험사 / 상품</th><th class="py-2 px-2">계약일</th><th class="py-2 px-2">납입/만기</th><th class="py-2 px-2 text-right">월 보험료</th><th class="py-2 px-2 text-center rounded-tr-lg">담보</th>
-              </tr></thead>
-              <tbody class="divide-y divide-slate-100">
-                ${existingList.map((c) => `
-                  <tr class="${c.checked ? "" : "opacity-40"}">
-                    <td class="py-2 px-2"><p class="font-extrabold text-slate-900">${esc(c.productName || "보유 계약")}</p><p class="text-[10px] text-slate-500">${esc(c.company)}${c.status ? " · " + esc(c.status) : ""}</p></td>
-                    <td class="py-2 px-2 text-slate-600 whitespace-nowrap">${esc(c.contractDate || "-")}</td>
-                    <td class="py-2 px-2 text-slate-600">${esc(c.period || "-")}</td>
-                    <td class="py-2 px-2 text-right font-extrabold text-slate-900 whitespace-nowrap">${esc(c.premium || "-")}</td>
-                    <td class="py-2 px-2 text-center font-bold text-slate-700">${(c.riders || []).length}</td>
-                  </tr>`).join("")}
-              </tbody>
-            </table>
+          <div class="space-y-2.5">
+            ${compGroups.map((g) => `
+              <div class="rounded-xl border border-slate-200 overflow-hidden">
+                <div class="flex items-center justify-between gap-2 px-3 py-2 bg-slate-100">
+                  <span class="text-xs font-extrabold text-slate-800 min-w-0 truncate">🏢 ${esc(g.name)}</span>
+                  <span class="text-[10px] text-slate-500 shrink-0">계약 ${g.items.length}건 · 월 ${won(g.items.reduce((s, x) => s + parseNum(x.c.premium), 0))}</span>
+                </div>
+                <div class="divide-y divide-slate-100">
+                  ${g.items.map((x) => `
+                    <button type="button" data-contract="${x.i}" class="block w-full text-left cursor-pointer px-3 py-2.5 bg-white ${x.c.checked ? "" : "opacity-40"}">
+                      <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                          <p class="text-xs font-extrabold text-slate-900">${esc(x.c.productName || "보유 계약")}</p>
+                          <p class="text-[10px] text-slate-500 mt-0.5">${esc(x.c.contractDate || "-")} · ${esc(x.c.period || "-")}${x.c.status ? " · " + esc(x.c.status) : ""}</p>
+                        </div>
+                        <div class="text-right shrink-0">
+                          <p class="text-xs font-black text-slate-900 whitespace-nowrap">${esc(x.c.premium || "-")}</p>
+                          <p class="text-[10px] font-bold text-indigo-600">담보 ${(x.c.riders || []).length}개<span class="contract-hint"> ›</span></p>
+                        </div>
+                      </div>
+                    </button>`).join("")}
+                </div>
+              </div>`).join("")}
           </div>`}
+        </div>`;
+      // 상품을 누르면 뜨는 창 내용 (기존 계약 순서와 같음)
+      window.__contractModal = existingList.map((c) => `
+        <div class="space-y-2.5">
+          <div style="padding-right:36px;">
+            <p class="text-[10px] font-bold text-slate-400">기존 계약 · ${esc(compOf(c))}</p>
+            <h4 class="text-base font-extrabold text-slate-900">${esc(c.productName || "보유 계약")}</h4>
+          </div>
+          ${contractInfoHtml(c)}
+          ${riderTableHtml(c)}
+        </div>`);
+      // 인쇄/PDF에는 창으로 열어야 보이는 담보 내역을 회사·상품별로 모두 펼쳐서 넣습니다. (화면에서는 숨김)
+      const contractPrintHtml = existingList.length === 0 ? "" : `
+        <div class="contract-print bg-white rounded-2xl p-4 border border-slate-200 space-y-3">
+          <div>
+            <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold">상품별 가입담보 상세</span>
+            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">보험사·상품별 담보 내역</h3>
+          </div>
+          ${compGroups.map((g) => `
+            <div class="space-y-2">
+              <p class="text-xs font-extrabold text-slate-800">🏢 ${esc(g.name)}</p>
+              ${g.items.map((x) => `
+                <div class="contract-blk rounded-xl border border-slate-200 p-3 space-y-2">
+                  <p class="text-xs font-extrabold text-slate-900">${esc(x.c.productName || "보유 계약")}</p>
+                  ${contractInfoHtml(x.c)}
+                  ${riderTableHtml(x.c)}
+                </div>`).join("")}
+            </div>`).join("")}
         </div>`;
 
       // ---- 3. 담보별 진단현황 ----
@@ -2011,41 +2077,6 @@
       const diagHtml = signalsEx.length ? "" : flatDiagHtml;
 
       // ---- 4. 상품별 가입담보 상세 ----
-      const detailCard = (c, isNew) => `
-        <details class="rounded-xl border ${isNew ? "border-teal-300" : "border-slate-200"} bg-white overflow-hidden ${c.checked ? "" : "opacity-50"}">
-          <summary class="cursor-pointer px-3 py-2.5 flex items-center justify-between gap-2 ${isNew ? "bg-teal-50/60" : "bg-slate-50"}">
-            <div class="min-w-0">
-              <span class="px-1.5 py-0.5 rounded ${isNew ? "bg-teal-600 text-white" : "bg-slate-200 text-slate-700"} text-[10px] font-bold">${isNew ? "신규" : "기존"} · ${esc(c.company || "-")}</span>
-              <p class="text-xs font-extrabold text-slate-900 truncate mt-0.5">${esc(c.productName || "상품")}</p>
-            </div>
-            <div class="text-right shrink-0"><p class="text-xs font-black ${isNew ? "text-teal-700" : "text-slate-800"}">${esc(c.premium || "-")}</p><p class="text-[10px] text-slate-500">담보 ${(c.riders || []).length}개 ▾</p></div>
-          </summary>
-          <div class="overflow-x-auto border-t border-slate-100">
-            <table class="w-full text-left border-collapse text-[11px]">
-              <thead><tr class="bg-slate-50 text-slate-500 font-bold"><th class="py-1.5 px-2">담보명</th><th class="py-1.5 px-2 text-right">가입금액</th><th class="py-1.5 px-2">감액/면책</th></tr></thead>
-              <tbody class="divide-y divide-slate-100">
-                ${(c.riders || []).map((r) => `
-                  <tr class="${r.checked ? "" : "opacity-40 line-through"}">
-                    <td class="py-1.5 px-2"><span class="text-[9px] font-bold text-slate-400">[${esc(r.cat || "기타")}]</span><p class="font-bold text-slate-800">${esc(r.name)}</p>${r.riderPrem ? `<p class="text-[9px] text-slate-400">보험료 ${esc(r.riderPrem)}</p>` : ""}${r.amountCheck ? `<p class="text-[9px] text-amber-700 font-bold">⚠️ 금액 확인 필요</p>` : ""}</td>
-                    <td class="py-1.5 px-2 text-right font-extrabold text-slate-900 whitespace-nowrap">${esc(r.amount)}</td>
-                    <td class="py-1.5 px-2 text-slate-600">${esc(r.reductionPeriod || "-")}${r.reductionAmount ? `<p class="text-[10px] text-amber-700 font-bold">${esc(r.reductionAmount)}</p>` : ""}</td>
-                  </tr>`).join("")}
-              </tbody>
-            </table>
-          </div>
-        </details>`;
-      const productHtml = `
-        <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
-          <div>
-            <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold">상품별 가입담보 상세</span>
-            <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">기존 계약의 상품을 눌러 담보 내역 보기</h3>
-          </div>
-          <div class="space-y-2">
-            ${existingList.length === 0 ? `<div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-400 text-center">등록된 기존 계약이 없습니다.</div>` : ""}
-            ${existingList.map((c) => detailCard(c, false)).join("")}
-          </div>
-        </div>`;
-
       // 펼침 상태 유지 (체크박스를 눌러 다시 그려도 열어둔 상품은 그대로)
       // 다시 그려도 열어 둔 항목(상품별 담보, 판정 기준)은 그대로 열려 있게 합니다.
       const contractsRoot = document.getElementById("contractsRoot");
@@ -2055,7 +2086,7 @@
       const openedContracts = contractsRoot ? openState(contractsRoot) : [];
       const summaryRoot = document.getElementById("summaryRoot");
       if (summaryRoot) summaryRoot.innerHTML = shieldDeco + summaryHtml;
-      root.innerHTML = (summaryRoot ? "" : summaryHtml) + (signals.length ? friendTrafficHtml : trafficHtml) + diagHtml + friendPrintHtml + (contractsRoot ? "" : holdHtml + productHtml);
+      root.innerHTML = (summaryRoot ? "" : summaryHtml) + (signals.length ? friendTrafficHtml : trafficHtml) + diagHtml + friendPrintHtml + (contractsRoot ? "" : holdHtml + contractPrintHtml);
       restoreState(root, openedMain);
       // 다섯 친구 카드를 누르면 상세 창이 뜹니다 (인쇄·PDF에는 들어가지 않습니다)
       window.__showFriend = function (key) {
@@ -2083,8 +2114,35 @@
         root.addEventListener("click", (e) => { const b = e.target.closest("[data-friend]"); if (b) window.__showFriend(b.getAttribute("data-friend")); });
       }
       if (window.__friendKey != null) window.__showFriend(window.__friendKey); // 체크박스 등으로 다시 그려도 열려 있는 창 내용을 갱신
+      // 보유 계약의 상품을 누르면 그 상품의 담보 내역이 창으로 뜹니다 (인쇄·PDF에는 위의 펼친 내용이 대신 들어갑니다)
+      window.__showContract = function (key) {
+        const html = (window.__contractModal || [])[Number(key)];
+        let m = document.getElementById("contractModal");
+        if (!html) { if (m) m.style.display = "none"; window.__contractKey = null; return; }
+        if (!m) {
+          m = document.createElement("div");
+          m.id = "contractModal";
+          m.className = "no-print";
+          m.style.cssText = "display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:70;background:rgba(15,23,42,.55);align-items:center;justify-content:center;padding:12px;";
+          m.innerHTML = '<div style="background:#fff;width:100%;max-width:520px;max-height:88vh;overflow:auto;border-radius:20px;padding:16px;position:relative;box-shadow:0 20px 50px rgba(15,23,42,.35);"><button type="button" data-contract-close aria-label="닫기" style="position:absolute;top:10px;right:12px;width:30px;height:30px;border-radius:15px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font-weight:800;cursor:pointer;">✕</button><div id="contractModalBody" style="padding-top:4px;"></div></div>';
+          const close = () => { window.__contractKey = null; m.style.display = "none"; document.body.style.overflow = ""; };
+          m.addEventListener("click", (e) => { if (e.target === m || e.target.closest("[data-contract-close]")) close(); });
+          document.addEventListener("keydown", (e) => { if (e.key === "Escape" && window.__contractKey != null) close(); });
+          document.body.appendChild(m);
+        }
+        window.__contractKey = key;
+        document.getElementById("contractModalBody").innerHTML = html;
+        m.style.display = "flex";
+        document.body.style.overflow = "hidden";
+      };
+      const holdRoot = contractsRoot || root;
+      if (!holdRoot.__contractBound) {
+        holdRoot.__contractBound = true;
+        holdRoot.addEventListener("click", (e) => { const b = e.target.closest("[data-contract]"); if (b) window.__showContract(b.getAttribute("data-contract")); });
+      }
+      if (window.__contractKey != null) window.__showContract(window.__contractKey); // 체크박스 등으로 다시 그려도 열려 있는 창 내용을 갱신
       if (contractsRoot) {
-        contractsRoot.innerHTML = holdHtml + productHtml;
+        contractsRoot.innerHTML = holdHtml + contractPrintHtml;
         restoreState(contractsRoot, openedContracts);
       }
     }
@@ -2221,7 +2279,7 @@
       min-height: 100vh;
       background: #f8fafc;
     }
-    .friend-print { display: none; }
+    .friend-print, .contract-print { display: none; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     [data-excluded][data-excluded] { display: none !important; }
@@ -2245,9 +2303,9 @@
       .mobile-shell, .wide-shell { max-width: 100% !important; margin: 0 !important; box-shadow: none !important; }
       .view-section { display: block !important; break-before: page; page-break-before: always; }
       .view-section[data-print-first] { break-before: auto; page-break-before: auto; }
-      .friend-print { display: block !important; }
+      .friend-print, .contract-print { display: block !important; }
       /* 신호등 아래 막대그래프(담보별 진단현황)는 신호등에 이어서 쪽 구분 없이 계속 인쇄 (담보 한 줄은 쪼개지지 않음) */
-      .friend-print, .friend-blk { break-inside: auto !important; page-break-inside: auto !important; }
+      .friend-print, .friend-blk, .contract-print, .contract-blk { break-inside: auto !important; page-break-inside: auto !important; }
       /* 인쇄/PDF 글자 크기: 일반 글씨는 화면보다 키우고, 강조하는 제목은 일반 글씨보다 더 크게 */
       [class*="text-[9px]"] { font-size: 12px !important; }
       [class*="text-[10px]"] { font-size: 13px !important; }
@@ -2268,7 +2326,7 @@
       h4[class] { font-size: 20px !important; line-height: 1.3 !important; }
       /* 계약·비교: 합계 상자 바로 아래에서 비교분석표가 이어서 시작 (표는 줄 단위로 쪽을 넘어가고 머리글이 반복됨) */
       #compareTableCard, #insurerCompareCard { break-inside: auto !important; page-break-inside: auto !important; }
-      .friend-hint { display: none !important; }
+      .friend-hint, .contract-hint { display: none !important; }
     }
   </style>
 </head>
