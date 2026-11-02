@@ -231,7 +231,7 @@
         <div id="tab-theme" class="tab-pane hidden space-y-4">
           <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
             <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">🎨 리포트 테마 <span class="font-medium text-slate-400">(하나만 선택)</span></h3>
-            <input type="hidden" id="inpTheme" value="default" />
+            <input type="hidden" id="inpTheme" value="tealblue" />
             <p class="text-[11px] text-slate-400 leading-relaxed">고객에게 보내는 리포트와 이 편집 화면의 색상이 함께 바뀝니다. 선택한 테마는 이 브라우저의 기본 테마로 저장됩니다.</p>
             <div id="themePicker" class="grid grid-cols-2 gap-2"></div>
           </div>
@@ -435,7 +435,7 @@
       includeTabs: { status: true, contracts: true, silson: true, compare: true },
       includeSections: { silsonTable: true, silsonMine: true, silsonSwitch: true, silsonCompare: true },
       silson: { generation: "auto" },
-      theme: "default",
+      theme: "tealblue",
       analysisMetrics: [],
       gapAnalysis: [],
       // 신규 추가: 기존 계약 리스트 (개별 체크박스 및 상세페이지 지원)
@@ -2148,42 +2148,42 @@
     }
 
     // =========================================================================
-    // 리포트 테마 (고객 화면 색상). 기본은 현재 색상 그대로이고, 나머지는 Tailwind 팔레트를 바꿔 입힙니다.
+    // 리포트 테마 (고객 화면 색상). Tailwind 팔레트를 바꿔 입힙니다. (예전의 '기본'·'블루 네이비' 테마는 없어졌고, 저장된 값은 첫 테마로 대신합니다)
     // 브랜드 로고(IMC)는 어떤 테마에서도 같은 파란색(#1C39BB)입니다.
     // =========================================================================
     const BRAND_BLUE = "#1C39BB";
     const REPORT_THEMES = {
-      "default": { name: "기본", desc: "짙은 상단 + 틸 포인트", sw: ["0d9488", "0f172a", "5eead4", "ccfbf1", "f1f5f9"] },
       tealblue: {
         name: "밝은 틸 + 블루", desc: "상단이 밝은 민트, 블루 버튼", sw: ["E9F7F6", "BFE6E0", "6EC9C3", "1C39BB", "1F3E46"],
         pal: { 50: "E9F7F6", 100: "BFE6E0", 200: "BFE6E0", 300: "6EC9C3", 400: "6EC9C3", 500: "1C39BB", 600: "1C39BB", 700: "1C39BB", 800: "1F3E46", 900: "1F3E46", 950: "1F3E46" }, dark: "1F3E46",
         light: { A: "E9F7F6", B: "BFE6E0", T: "1F3E46", ACC: "1C39BB" },
         ui: { light: true, BG: "E9F7F6", P1: "FFFFFF", P2: "F2FAF9", IN: "FFFFFF", BD: "BFE6E0", TX: "1F3E46", MU: "5B7F83", ACC: "1C39BB", BTN: "1C39BB", BTN2: "3A55CC" }
       },
-      navy: {
-        name: "블루 네이비", desc: "상단만 어두운 네이비", sw: ["3A4A7A", "2C3E8C", "1C39BB", "D9E2FF", "F4F7FF"],
-        pal: { 50: "F0F4FF", 100: "D9E2FF", 200: "D9E2FF", 300: "D9E2FF", 400: "9AA6C2", 500: "1C39BB", 600: "1C39BB", 700: "1C39BB", 800: "3A4A7A", 900: "3A4A7A", 950: "3A4A7A" }, dark: "3A4A7A",
-        top: { T: "3A4A7A", T2: "2C3E8C", BTN: "1C39BB", PG: "F4F7FF" },
-        ui: { light: false, BG: "151C36", P1: "1B2547", P2: "232D52", IN: "11182F", BD: "3A4A7A", TX: "F4F7FF", MU: "9AA6C2", ACC: "D9E2FF", BTN: "1C39BB", BTN2: "3A55CC" }
-      },
       lightblue: {
         name: "밝은 블루", desc: "상단이 밝은 화이트·블루", sw: ["FDFDFB", "D9E2FF", "9AA6C2", "3A4A7A", "1C39BB"],
         pal: { 50: "F0F4FF", 100: "D9E2FF", 200: "D9E2FF", 300: "9AA6C2", 400: "9AA6C2", 500: "1C39BB", 600: "1C39BB", 700: "1C39BB", 800: "3A4A7A", 900: "3A4A7A", 950: "3A4A7A" }, dark: "3A4A7A",
         light: { A: "FDFDFB", B: "D9E2FF", T: "3A4A7A", ACC: "1C39BB" },
         ui: { light: true, BG: "F0F4FF", P1: "FFFFFF", P2: "FDFDFB", IN: "FFFFFF", BD: "D9E2FF", TX: "3A4A7A", MU: "6A77A0", ACC: "1C39BB", BTN: "1C39BB", BTN2: "3A55CC" }
+      },
+      orange: {
+        name: "오렌지", desc: "상단이 밝은 살구색, 오렌지 포인트", sw: ["FFF3EC", "FFD9C7", "FF9E7A", "D9480F", "4A2A1F"],
+        pal: { 50: "FFF3EC", 100: "FFD9C7", 200: "FFD9C7", 300: "FF9E7A", 400: "FF9E7A", 500: "D9480F", 600: "D9480F", 700: "D9480F", 800: "4A2A1F", 900: "4A2A1F", 950: "4A2A1F" }, dark: "4A2A1F",
+        light: { A: "FFF3EC", B: "FFD9C7", T: "4A2A1F", ACC: "D9480F" },
+        ui: { light: true, BG: "FFF3EC", P1: "FFFFFF", P2: "FFF8F4", IN: "FFFFFF", BD: "FFD9C7", TX: "4A2A1F", MU: "8A5A47", ACC: "D9480F", BTN: "D9480F", BTN2: "EA6A2E" }
       }
     };
-    const THEME_ORDER = ["default", "tealblue", "navy", "lightblue"];
+    const THEME_ORDER = ["tealblue", "lightblue", "orange"];
     // 선택한 테마는 이 브라우저의 기본 테마로 저장되어 새 화면·보관함 기록·불러오기에서도 그대로 유지됩니다.
     const THEME_PREF_KEY = "REPORT_THEME_DEFAULT";
     function getThemePref() {
       try { const v = localStorage.getItem(THEME_PREF_KEY); if (REPORT_THEMES[v]) return v; } catch (e) { /* 저장소를 못 쓰면 기본 */ }
-      return "default";
+      return THEME_ORDER[0];
     }
 
     // <head>에 넣을 테마 설정(Tailwind 팔레트 + 덧씌우는 CSS). 기본 테마는 로고 색만 고정합니다.
     function reportThemeHead(key) {
-      const t = REPORT_THEMES[key] || REPORT_THEMES["default"];
+      if (!REPORT_THEMES[key]) key = THEME_ORDER[0]; // 없어진 테마(기본·블루 네이비)로 저장된 기록은 첫 테마로 보여 줍니다
+      const t = REPORT_THEMES[key];
       let css = "#uiBrandShort{background:" + BRAND_BLUE + "!important;color:#fff!important}" +
         "#uiBtnCall{background:#0d9488!important;color:#fff!important}#uiBtnCall:hover{background:#14b8a6!important}" +
         "#btnOpenDocsModal{background:#F3B6C0!important;color:#000!important}#btnOpenDocsModal:hover{background:#f0a3b0!important}";
@@ -2206,25 +2206,16 @@
             "#compareSumBar [class*=\"text-teal\"]{color:#" + m.ACC + "!important}" +
             "#compareSumBar [class*=\"bg-slate-950\"],#compareSumBar [class*=\"bg-teal-500\"]{background:#fff!important;border-color:#" + m.B + "!important}" +
             "#compareSumBar .border-b{border-color:#" + m.B + "!important}}";
-        } else if (t.top) {
-          const m = t.top;
-          css += "body{background:#" + m.PG + "!important}" +
-            "header.sticky{background:#" + m.T + "f2!important;border-color:#" + m.T + "!important}" +
-            "header button{background:#ffffff1f!important;border-color:#ffffff33!important;color:#fff!important}" +
-            "#summaryRoot{background:linear-gradient(135deg,#" + m.T + ",#" + m.T2 + ")!important}" +
-            ".bg-slate-900,.bg-slate-800{background:#" + m.T + "!important}" +
-            "thead,thead th{background:#" + m.T + "!important}";
         }
       }
       // 계약현황 요약 배경 방패 색: 테마마다 어울리는 색으로 (A: 윗부분 밝은 색, B: 중간, C: 아랫부분 진한 색, G: 은은한 빛)
       // 5번째 값: '신규 제안' 칸 배경(방패가 은은하게 비치는 정도), 6번째 값: 칸 뒤 흐림(px, 0이면 없음)
       const SHIELD = {
-        "default": ["5eead4", "14b8a6", "0f766e", "2dd4bf", "#0b4a4787", 4],
         tealblue: ["6EC9C3", "2E8FD0", "1C39BB", "6EC9C3", "#ffffffb3", 0],
-        navy: ["A9BEFF", "5C7BF0", "1C39BB", "6A8CFF", "#203a9c87", 4],
-        lightblue: ["6EC9C3", "3A68E0", "1C39BB", "6EC9C3", "#ffffffb3", 0]
+        lightblue: ["6EC9C3", "3A68E0", "1C39BB", "6EC9C3", "#ffffffb3", 0],
+        orange: ["FFB38F", "F0743A", "C2410C", "FFB38F", "#ffffffb3", 0]
       };
-      const sh = SHIELD[key] || SHIELD["default"];
+      const sh = SHIELD[key];
       css += "#summaryRoot{--shA:#" + sh[0] + ";--shB:#" + sh[1] + ";--shC:#" + sh[2] + ";--shG:#" + sh[3] + "}" +
         "#summaryRoot [class*=\"bg-teal-500/20\"]{background:" + sh[4] + "!important}" +
         (sh[5] ? "#summaryRoot [class*=\"bg-teal-500/20\"],#summaryRoot [class*=\"bg-white/10\"]{-webkit-backdrop-filter:blur(" + sh[5] + "px);backdrop-filter:blur(" + sh[5] + "px)}" : "");
@@ -2973,7 +2964,7 @@
     }
 
     function renderThemePicker() {
-      const cur = document.getElementById("inpTheme").value || "default";
+      const cur = document.getElementById("inpTheme").value || THEME_ORDER[0];
       document.getElementById("themePicker").innerHTML = THEME_ORDER.map((k) => {
         const t = REPORT_THEMES[k], on = k === cur;
         return `<button type="button" data-theme="${k}" role="checkbox" aria-checked="${on}" class="text-left rounded-xl border-2 p-2.5 transition ${on ? "border-teal-400 bg-teal-950/60" : "border-slate-700 bg-slate-950 hover:border-slate-500"}">
@@ -3054,7 +3045,7 @@
         income: document.getElementById("inpIncome").value
       };
       currentData.silson = { generation: document.getElementById("inpSilsonGen").value || "auto" };
-      currentData.theme = document.getElementById("inpTheme").value || "default";
+      currentData.theme = document.getElementById("inpTheme").value || THEME_ORDER[0];
 
       currentData.scriptPrompts = {
         p1: document.getElementById("scriptPrompt1").value,
