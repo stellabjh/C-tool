@@ -3868,6 +3868,22 @@ ${rawText || "없음"}
       { key: "signal", name: "4. 신호등 + 방패", title: "내 보장 신호등 점검", desc: "초록·노랑·빨강으로 내 보장 상태를 바로 확인하세요." }
     ];
     const LINK_CARD_PREF_KEY = "REPORT_LINK_CARD";
+    // 설계사가 고친 제목·설명은 그림별로 이 브라우저에 저장합니다. (비어 있으면 기본 문구)
+    const LINK_CARD_TEXT_KEY = "REPORT_LINK_CARD_TEXT";
+    const LINK_TITLE_MAX = 40, LINK_DESC_MAX = 80;
+    function readLinkCardTexts() {
+      try { return JSON.parse(localStorage.getItem(LINK_CARD_TEXT_KEY) || "{}") || {}; } catch (e) { return {}; }
+    }
+    function getLinkCardText(key) {
+      const c = LINK_CARDS.find((x) => x.key === key) || LINK_CARDS[0];
+      const t = readLinkCardTexts()[c.key] || {};
+      return { title: (t.title || "").trim() || c.title, desc: (t.desc || "").trim() || c.desc, edited: !!((t.title || "").trim() || (t.desc || "").trim()) };
+    }
+    function saveLinkCardText(key, title, desc) {
+      const all = readLinkCardTexts();
+      all[key] = { title: title, desc: desc };
+      try { localStorage.setItem(LINK_CARD_TEXT_KEY, JSON.stringify(all)); } catch (e) { /* 무시 */ }
+    }
     function getLinkCardPref() {
       try { const v = localStorage.getItem(LINK_CARD_PREF_KEY); if (LINK_CARDS.some((c) => c.key === v)) return v; } catch (e) { /* 저장소를 못 쓰면 기본 */ }
       return LINK_CARDS[0].key;
@@ -3884,16 +3900,44 @@ ${rawText || "없음"}
         </button>`;
       }).join("");
       const c = LINK_CARDS.find((x) => x.key === cur) || LINK_CARDS[0];
+      const tx = getLinkCardText(c.key);
+      const esc2 = (v) => String(v).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       document.getElementById("linkCardPreview").innerHTML = `
         <p style="margin:0 0 6px;font-size:11px;font-weight:800;color:#64748b">👀 카톡에서 이렇게 보여요 (예시)</p>
         <div style="background:#b2c7da;border-radius:14px;padding:12px">
           <div style="display:flex;justify-content:flex-end"><div style="background:#fee500;border-radius:12px 2px 12px 12px;padding:7px 10px;font-size:11.5px;color:#222;line-height:1.45">안녕하세요 고객님,<br>보장분석 리포트 보내드립니다 🙂</div></div>
           <div style="width:88%;margin:6px 0 0 auto;background:#fff;border-radius:6px 12px 12px 12px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.12)">
             <img src="card/${c.key}.jpg" alt="${c.name}" style="display:block;width:100%;aspect-ratio:1.91/1;object-fit:cover" />
-            <div style="padding:8px 10px 10px"><div style="font-size:12.5px;font-weight:800;color:#222;line-height:1.35">${c.title}</div><div style="font-size:11px;color:#777;margin-top:3px;line-height:1.45">${c.desc}</div><div style="font-size:10px;color:#aaa;margin-top:5px">${location.host || "사이트 주소"}</div></div>
+            <div style="padding:8px 10px 10px"><div id="linkPrevTitle" style="font-size:12.5px;font-weight:800;color:#222;line-height:1.35"></div><div id="linkPrevDesc" style="font-size:11px;color:#777;margin-top:3px;line-height:1.45"></div><div style="font-size:10px;color:#aaa;margin-top:5px">${location.host || "사이트 주소"}</div></div>
           </div>
         </div>
-        <p style="margin:6px 0 0;font-size:10px;color:#94a3b8;line-height:1.5">실제 카톡 화면과 조금 다를 수 있습니다. 제목·설명은 고객 이름 없이 모든 링크가 같습니다.</p>`;
+        <p style="margin:6px 0 10px;font-size:10px;color:#94a3b8;line-height:1.5">실제 카톡 화면과 조금 다를 수 있습니다.</p>
+        <div class="space-y-2">
+          <label class="block text-[11px] font-bold text-slate-300">카드 제목 <span class="font-medium text-slate-500">(최대 ${LINK_TITLE_MAX}자)</span>
+            <input id="linkTextTitle" type="text" maxlength="${LINK_TITLE_MAX}" value="${esc2(tx.title)}" class="mt-1 w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" /></label>
+          <label class="block text-[11px] font-bold text-slate-300">카드 설명 <span class="font-medium text-slate-500">(최대 ${LINK_DESC_MAX}자)</span>
+            <input id="linkTextDesc" type="text" maxlength="${LINK_DESC_MAX}" value="${esc2(tx.desc)}" class="mt-1 w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white" /></label>
+          <div class="flex items-center justify-between gap-2">
+            <button type="button" id="linkTextReset" class="px-2.5 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-[11px] font-semibold text-slate-200 border border-slate-600">↩️ 기본 문구로</button>
+            <span class="text-[10px] text-slate-500 text-right leading-snug">⚠️ 이 문구는 링크 앞부분에 들어가 서버와 카톡이 읽습니다. 고객 이름 같은 개인정보는 쓰지 마세요.</span>
+          </div>
+        </div>`;
+      const paintText = () => {
+        const t = getLinkCardText(c.key);
+        document.getElementById("linkPrevTitle").textContent = t.title;
+        document.getElementById("linkPrevDesc").textContent = t.desc;
+      };
+      paintText();
+      const onType = () => {
+        saveLinkCardText(c.key, document.getElementById("linkTextTitle").value, document.getElementById("linkTextDesc").value);
+        paintText();
+      };
+      document.getElementById("linkTextTitle").addEventListener("input", onType);
+      document.getElementById("linkTextDesc").addEventListener("input", onType);
+      document.getElementById("linkTextReset").addEventListener("click", () => {
+        saveLinkCardText(c.key, "", "");
+        renderLinkCardPicker();
+      });
     }
     document.getElementById("linkCardPicker").addEventListener("click", (e) => {
       const b = e.target.closest("[data-linkcard]");
@@ -3952,7 +3996,13 @@ ${rawText || "없음"}
       return JSON.parse(new TextDecoder().decode(await inflateRawBytes(b64UrlToBytes(payload))));
     }
     async function buildReportLink(d, cardKey) {
-      return location.origin + "/r?c=" + encodeURIComponent(cardKey) + "#r=" + await encodeReportLink(d);
+      const base = LINK_CARDS.find((x) => x.key === cardKey) || LINK_CARDS[0];
+      const tx = getLinkCardText(base.key);
+      // 고친 문구만 링크 앞부분에 담습니다 (기본 문구는 서버가 그림 이름만 보고 알아서 넣음)
+      let q = "?c=" + encodeURIComponent(base.key);
+      if (tx.title !== base.title) q += "&t=" + encodeURIComponent(tx.title.slice(0, LINK_TITLE_MAX));
+      if (tx.desc !== base.desc) q += "&d=" + encodeURIComponent(tx.desc.slice(0, LINK_DESC_MAX));
+      return location.origin + "/r" + q + "#r=" + await encodeReportLink(d);
     }
 
     function openLinkDialog(link, cardName) {
