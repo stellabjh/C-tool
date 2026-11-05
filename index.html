@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>한눈에 보장 ON</title>
+  <script>if (location.hash.indexOf("#r=") === 0) document.documentElement.style.visibility = "hidden";</script>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -63,6 +64,9 @@
       </button>
       <button id="btnDownloadClientHtml" class="px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-teal-500/20 transition flex items-center gap-1.5">
         <span>📥</span> 고객용 한눈에 보장 다운로드
+      </button>
+      <button id="btnShareLink" class="px-3 py-2 rounded-xl bg-yellow-300 hover:bg-yellow-200 text-slate-900 font-extrabold text-xs border border-yellow-400 transition flex items-center gap-1.5" title="카톡으로 보낼 링크를 만듭니다 (서버에 저장하지 않음)">
+        <span>🔗</span> 링크로 보내기
       </button>
     </div>
   </header>
@@ -235,6 +239,11 @@
             <p class="text-[11px] text-slate-400 leading-relaxed">고객에게 보내는 리포트와 이 편집 화면의 색상이 함께 바뀝니다. 선택한 테마는 이 브라우저의 기본 테마로 저장됩니다.</p>
             <div id="themePicker" class="grid grid-cols-2 gap-2"></div>
           </div>
+          <div class="bg-slate-800/70 border border-slate-700 rounded-2xl p-4 space-y-3">
+            <h3 class="text-xs font-extrabold text-teal-300 border-b border-slate-700 pb-2">💬 카톡 링크 카드 그림 <span class="font-medium text-slate-400">(하나만 선택)</span></h3>
+            <p class="text-[11px] text-slate-400 leading-relaxed">[🔗 링크로 보내기]로 만든 링크를 카톡으로 보내면 이 그림이 카드로 보입니다. 선택한 그림은 이 브라우저의 기본값으로 저장됩니다.</p>
+            <div id="linkCardPicker" class="grid grid-cols-2 gap-2"></div>
+          </div>
         </div>
 
         <!-- TAB 3: Basic Info Editor -->
@@ -389,6 +398,7 @@
 
   <!-- Master Script -->
   <script>
+    /*APP_MAIN_START*/ // (링크로 열 때 /r 이 이 사이를 함수로 감싸 이름이 겹치지 않게 합니다)
     // 제안 화법을 만들 때 AI에게 함께 주는 참고 자료: 《통의보감》의 '통계·의학적 사실로 고객이 스스로 질문하게 만드는' 전환 화법.
     // 고객 증권에 실제로 공백이 있는 담보에 해당하는 부분만 골라 쓰도록 지시합니다.
     const TALK_REFERENCE = `[화법 참고 자료 — 《통의보감》 전환 화법의 원칙]
@@ -3844,12 +3854,172 @@ ${rawText || "없음"}
       }
     });
 
-    updateHistoryBadge();
-    initFolder();
-    syncDataToInputs();
-    renderPreview();
-    document.getElementById("btnRecheckServer").addEventListener("click", probeServerKey);
-    probeServerKey();
+    // =========================================================================
+    // 링크로 보내기 (서버에 저장하지 않음): 리포트를 압축해 링크 뒤쪽(#r=...)에 담습니다.
+    //  카톡 카드의 그림·제목·설명은 functions/r.js 가 링크 앞부분(?c=그림이름)을 보고 만듭니다.
+    //  링크를 열면 이 앱이 뒤쪽 내용을 풀어 고객용 리포트를 그립니다 (맨 아래 '링크로 열기').
+    // =========================================================================
+    const LINK_CARDS = [
+      { key: "family", name: "1. 가족" },
+      { key: "friends", name: "2. 다섯 친구" },
+      { key: "report", name: "3. 리포트 미리보기" },
+      { key: "signal", name: "4. 신호등 + 방패" }
+    ];
+    const LINK_CARD_PREF_KEY = "REPORT_LINK_CARD";
+    function getLinkCardPref() {
+      try { const v = localStorage.getItem(LINK_CARD_PREF_KEY); if (LINK_CARDS.some((c) => c.key === v)) return v; } catch (e) { /* 저장소를 못 쓰면 기본 */ }
+      return LINK_CARDS[0].key;
+    }
+    function renderLinkCardPicker() {
+      const cur = getLinkCardPref();
+      document.getElementById("linkCardPicker").innerHTML = LINK_CARDS.map((c) => {
+        const on = c.key === cur;
+        return `<button type="button" data-linkcard="${c.key}" role="checkbox" aria-checked="${on}" class="text-left rounded-xl border-2 p-2 transition ${on ? "border-teal-400 bg-teal-950/60" : "border-slate-700 bg-slate-950 hover:border-slate-500"}">
+          <img src="card/${c.key}.jpg" alt="${c.name}" class="w-full rounded-lg block" loading="lazy" />
+          <span class="flex items-center gap-1.5 mt-1.5 text-xs font-extrabold text-slate-100">
+            <span class="inline-flex items-center justify-center w-4 h-4 rounded border-2 border-teal-400 text-[10px] leading-none ${on ? "bg-teal-400 text-slate-950" : ""}">${on ? "✓" : ""}</span>${c.name}
+          </span>
+        </button>`;
+      }).join("");
+    }
+    document.getElementById("linkCardPicker").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-linkcard]");
+      if (!b) return;
+      try { localStorage.setItem(LINK_CARD_PREF_KEY, b.getAttribute("data-linkcard")); } catch (err) { /* 무시 */ }
+      renderLinkCardPicker();
+    });
+
+    // 압축·인코딩 (CompressionStream 이 없는 오래된 브라우저는 pako 로 대신)
+    let pakoLoading = null;
+    function loadPako() {
+      if (window.pako) return Promise.resolve();
+      if (!pakoLoading) pakoLoading = new Promise((ok, fail) => {
+        const s = document.createElement("script");
+        s.src = "https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js";
+        s.onload = ok; s.onerror = () => fail(new Error("압축 해제 도구를 불러오지 못했습니다."));
+        document.head.appendChild(s);
+      });
+      return pakoLoading;
+    }
+    async function streamBytes(u8, stream) {
+      const w = stream.writable.getWriter(); w.write(u8); w.close();
+      return new Uint8Array(await new Response(stream.readable).arrayBuffer());
+    }
+    async function deflateRawBytes(u8) {
+      if (window.CompressionStream) return streamBytes(u8, new CompressionStream("deflate-raw"));
+      await loadPako(); return window.pako.deflateRaw(u8, { level: 9 });
+    }
+    async function inflateRawBytes(u8) {
+      if (window.DecompressionStream) return streamBytes(u8, new DecompressionStream("deflate-raw"));
+      await loadPako(); return window.pako.inflateRaw(u8);
+    }
+    function bytesToB64Url(u8) {
+      let s = "";
+      for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+      return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
+    function b64UrlToBytes(t) {
+      t = t.replace(/-/g, "+").replace(/_/g, "/");
+      while (t.length % 4) t += "=";
+      const s = atob(t), u8 = new Uint8Array(s.length);
+      for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i);
+      return u8;
+    }
+    // 고객 화면에 필요 없는 내부 값(화법·AI 원문 등)은 빼고 담습니다. (generateClientHtml 과 같은 기준)
+    function reportLinkData(d) {
+      const x = JSON.parse(JSON.stringify(d));
+      ["scripts", "scriptPrompts", "fileResults", "gapAnalysis", "analysisMetrics", "heroMetrics", "id", "savedAt"].forEach((k) => delete x[k]);
+      return x;
+    }
+    async function encodeReportLink(d) {
+      const bytes = new TextEncoder().encode(JSON.stringify(reportLinkData(d)));
+      return bytesToB64Url(await deflateRawBytes(bytes));
+    }
+    async function decodeReportLink(payload) {
+      return JSON.parse(new TextDecoder().decode(await inflateRawBytes(b64UrlToBytes(payload))));
+    }
+    async function buildReportLink(d, cardKey) {
+      return location.origin + "/r?c=" + encodeURIComponent(cardKey) + "#r=" + await encodeReportLink(d);
+    }
+
+    function openLinkDialog(link, cardName) {
+      let m = document.getElementById("linkDialog");
+      if (m) m.remove();
+      const len = link.length;
+      const warn = len > 4000
+        ? `<p style="color:#b45309;font-weight:700;font-size:11px;margin:6px 0 0">링크가 매우 깁니다(${len.toLocaleString()}자). 카톡으로 보낸 뒤 받는 쪽에서 열리는지 꼭 확인해 주세요.</p>`
+        : `<p style="color:#64748b;font-size:11px;margin:6px 0 0">링크 길이 ${len.toLocaleString()}자 · 카드 그림 ${cardName}</p>`;
+      m = document.createElement("div");
+      m.id = "linkDialog";
+      m.style.cssText = "position:fixed;top:0;right:0;bottom:0;left:0;z-index:90;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:12px;";
+      m.innerHTML = `<div style="background:#fff;color:#0f172a;width:100%;max-width:480px;max-height:90vh;overflow:auto;border-radius:18px;padding:18px;box-shadow:0 20px 50px rgba(15,23,42,.35);">
+        <h3 style="margin:0 0 4px;font-size:15px;font-weight:800">🔗 고객에게 보낼 링크</h3>
+        <p style="margin:0 0 10px;font-size:11px;color:#64748b;line-height:1.5">링크를 카톡으로 보내면 선택한 그림이 카드로 보이고, 누르면 고객용 리포트가 열립니다.</p>
+        <textarea id="linkDialogText" readonly rows="4" style="width:100%;font-size:11px;border:1px solid #cbd5e1;border-radius:10px;padding:8px;word-break:break-all;color:#0f172a;background:#f8fafc"></textarea>
+        ${warn}
+        <div style="margin-top:10px;padding:8px 10px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;font-size:11px;line-height:1.5;font-weight:600">⚠️ 이 링크 안에 고객 이름·보험 정보가 들어 있습니다. 링크를 받은 사람은 누구나 열 수 있고, 한 번 보내면 취소할 수 없습니다. 보내기 전에 고객 동의를 받아 주세요.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:12px">
+          <button type="button" id="linkBtnCopy" style="padding:8px 14px;border-radius:10px;background:#0f172a;color:#fff;font-weight:800;font-size:12px;border:0;cursor:pointer">📋 링크 복사</button>
+          ${navigator.share ? '<button type="button" id="linkBtnShare" style="padding:8px 14px;border-radius:10px;background:#fee500;color:#222;font-weight:800;font-size:12px;border:0;cursor:pointer">📤 공유하기</button>' : ""}
+          <button type="button" id="linkBtnOpen" style="padding:8px 14px;border-radius:10px;background:#fff;color:#0f172a;font-weight:700;font-size:12px;border:1px solid #cbd5e1;cursor:pointer">👁 열어 보기</button>
+          <button type="button" id="linkBtnClose" style="margin-left:auto;padding:8px 14px;border-radius:10px;background:#fff;color:#64748b;font-weight:700;font-size:12px;border:1px solid #e2e8f0;cursor:pointer">닫기</button>
+        </div></div>`;
+      document.body.appendChild(m);
+      const ta = document.getElementById("linkDialogText");
+      ta.value = link;
+      const close = () => m.remove();
+      m.addEventListener("click", (e) => { if (e.target === m) close(); });
+      document.getElementById("linkBtnClose").addEventListener("click", close);
+      document.getElementById("linkBtnOpen").addEventListener("click", () => window.open(link, "_blank"));
+      document.getElementById("linkBtnCopy").addEventListener("click", async () => {
+        const b = document.getElementById("linkBtnCopy");
+        try { await navigator.clipboard.writeText(link); }
+        catch (e) { ta.focus(); ta.select(); document.execCommand("copy"); }
+        b.textContent = "✓ 복사했습니다"; setTimeout(() => { b.textContent = "📋 링크 복사"; }, 1800);
+      });
+      const sh = document.getElementById("linkBtnShare");
+      if (sh) sh.addEventListener("click", () => { navigator.share({ title: "보장분석 리포트", url: link }).catch(() => {}); });
+    }
+    document.getElementById("btnShareLink").addEventListener("click", async () => {
+      if (!/^https?:$/.test(location.protocol)) {
+        alert("링크는 인터넷에 올려 둔 사이트 주소(https://…)에서 열었을 때만 만들 수 있습니다.\n파일로 연 화면에서는 만들 수 없어요.");
+        return;
+      }
+      syncInputsToData();
+      saveToHistory(currentData);
+      const card = getLinkCardPref();
+      try {
+        openLinkDialog(await buildReportLink(currentData, card), (LINK_CARDS.find((c) => c.key === card) || LINK_CARDS[0]).name);
+      } catch (err) {
+        alert("링크를 만들지 못했습니다: " + err.message);
+      }
+    });
+    renderLinkCardPicker();
+
+    // 링크로 열린 경우(#r=...)에는 편집 화면 준비를 건너뜁니다 (아래에서 고객용 리포트로 바꿔 그림).
+    if (location.hash.indexOf("#r=") !== 0) {
+      updateHistoryBadge();
+      initFolder();
+      syncDataToInputs();
+      renderPreview();
+      document.getElementById("btnRecheckServer").addEventListener("click", probeServerKey);
+      probeServerKey();
+    }
+    // 링크로 열기: 주소 뒤쪽(#r=...)에 담긴 리포트가 있으면 앱 화면 대신 고객용 리포트를 그립니다.
+    (async function openReportFromLink() {
+      const m = location.hash.match(/^#r=(.+)$/);
+      if (!m) return;
+      try {
+        const data = await decodeReportLink(m[1]);
+        document.open();
+        document.write(generateClientHtml(data));
+        document.close();
+      } catch (err) {
+        document.documentElement.style.visibility = "";
+        document.body.innerHTML = '<div style="max-width:420px;margin:60px auto;padding:20px;font-family:sans-serif;text-align:center;line-height:1.6"><h2>리포트를 열 수 없습니다</h2><p>링크가 잘렸거나 올바르지 않습니다. 보낸 분께 링크를 다시 받아 주세요.</p></div>';
+      }
+    })();
+    /*APP_MAIN_END*/
   </script>
 </body>
 </html>
