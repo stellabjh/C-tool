@@ -1868,16 +1868,20 @@
       const signalsEx = computeFriendSignals(DATA.profile, existingList, [], parseNum);
       const otherRiders = ((signalsEx.unmatched) || []).filter((x) => !x.proposed);
       const otherBtnHtml = signals.length === 0 || otherRiders.length === 0 ? "" : `
-          <button type="button" data-friend="other" class="friend-hint w-full text-left cursor-pointer px-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-600 flex items-center justify-between"><span>📎 그 밖의 담보 <span class="text-[9px] font-semibold text-slate-400">표에 없는 담보 ${otherRiders.length}개</span></span><span>›</span></button>`;
+          <button type="button" data-friend="other" class="friend-hint tap-card w-full text-left px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-[11px] font-bold text-slate-600 flex items-center justify-between"><span>📎 그 밖의 담보 <span class="text-[9px] font-semibold text-slate-400">표에 없는 담보 ${otherRiders.length}개</span></span><span>›</span></button>`;
       // ---- 보장분석신호등: 소득 정보가 있으면 다섯 친구 기준, 없으면 담보 8항목 기준 ----
       const fcount = { green: 0, yellow: 0, red: 0, gray: 0 };
       signals.forEach((s) => fcount[s.status.color]++);
+      // 손가락 표시는 처음 한 번만(다시 그릴 때마다 반복하지 않음), 카드를 한 번 누르면 사라집니다
+      const fingerFriend = window.__tapFingerFriend ? "" : '<span class="tap-finger no-print" aria-hidden="true">👆</span>';
+      window.__tapFingerFriend = true;
       const friendTrafficHtml = signals.length === 0 ? "" : `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
           <div>
             <span class="px-2.5 py-0.5 rounded-full bg-slate-900 text-white text-[11px] font-extrabold">🚦 보장분석신호등</span>
             <h3 class="text-sm font-extrabold text-slate-900 mt-1">다섯 친구 기준 필요 보장 vs 현재 준비</h3>
             <p class="text-[11px] text-slate-500 mt-0.5">연소득 ${fmt(signals[0].own)}${signals[0].spouse > 0 ? " · 배우자 " + fmt(signals[0].spouse) : ""}${signals[0].kids > 0 ? " · 자녀 " + signals[0].kids + "명" : ""} 기준 · 기존 + 신규 합산 · 카드는 충족한 담보 수와 평균 준비율 · 🟢 충분 🟡 주의(50%↑) 🔴 부족·미가입 ⚪ 확인 불가 (참고용)</p>
+            <div class="tap-tip friend-hint no-print" style="margin-top:8px"><span style="font-size:14px">👆</span> 카드를 눌러서 담보 내역을 확인하세요</div>
           </div>
           <div class="grid grid-cols-4 gap-1.5 text-center">
             <div class="rounded-xl bg-emerald-50 border border-emerald-200 py-1.5"><p class="text-base font-black text-emerald-700">${fcount.green}</p><p class="text-[10px] font-bold text-emerald-700">충분</p></div>
@@ -1887,7 +1891,7 @@
           </div>
           <div class="grid grid-cols-2 gap-1.5">
             ${signals.map((s, i) => `
-              <button type="button" data-friend="${i}" class="${i === signals.length - 1 && signals.length % 2 === 1 ? "col-span-2" : ""} block w-full text-left cursor-pointer px-2.5 py-2 rounded-lg border ${LIGHT[s.status.color].chip}">
+              <button type="button" data-friend="${i}" class="${i === signals.length - 1 && signals.length % 2 === 1 ? "col-span-2" : ""} block w-full text-left tap-card px-2.5 py-2 rounded-lg border ${LIGHT[s.status.color].chip}">
                 <div class="flex items-center justify-between gap-1">
                   <span class="text-[9px] font-bold opacity-70">${esc(s.order)}</span>
                   <span class="px-1.5 rounded text-[9px] font-extrabold border ${LIGHT[s.status.color].chip}">${s.status.text}</span>
@@ -1895,7 +1899,8 @@
                 <p class="text-[11px] font-extrabold flex items-center gap-1 leading-tight mt-0.5"><span class="w-2 h-2 rounded-full shrink-0 ${LIGHT[s.status.color].dot}"></span>${esc(s.label)}</p>
                 <p class="text-[10px] leading-tight mt-0.5"><span class="font-black text-slate-800">${s.total ? "충족 " + s.met + "/" + s.total : "-"}</span><span class="opacity-60"> · 필요 ${s.value === null ? "시장가격" : fmt(s.value)}</span></p>
                 ${s.pct === null ? "" : `<div class="w-full bg-white/70 rounded-full h-1 overflow-hidden mt-1"><div class="${LIGHT[s.status.color].bar} h-1 rounded-full" style="width:${Math.min(100, s.pct)}%"></div></div>`}
-                <p class="friend-hint text-[9px] font-bold opacity-60 mt-1">담보 자세히 보기 ›</p>
+                <span class="friend-hint tap-chip">자세히 보기 ›</span>
+                ${i === 0 ? fingerFriend : ""}
               </button>`).join("")}
           </div>
           ${otherBtnHtml}
@@ -1938,12 +1943,15 @@
             <div class="rounded-lg bg-slate-50 border border-slate-200/80 px-2.5 py-1.5"><p class="text-[9px] text-slate-400">월 보험료</p><p class="font-extrabold text-slate-900">${esc(c.premium || "-")}</p></div>
             <div class="rounded-lg bg-slate-50 border border-slate-200/80 px-2.5 py-1.5"><p class="text-[9px] text-slate-400">상태 · 담보 수</p><p class="font-bold text-slate-800">${c.status ? esc(c.status) + " · " : ""}${(c.riders || []).length}개</p></div>
           </div>`;
+      const fingerContract = window.__tapFingerContract ? "" : '<span class="tap-finger no-print" aria-hidden="true">👆</span>';
+      window.__tapFingerContract = true;
       const holdHtml = `
         <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm space-y-3">
           <div>
             <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-extrabold">보유 계약현황</span>
             <h3 class="text-sm font-extrabold text-slate-900 mt-0.5">현재 가입 중인 계약</h3>
-            <p class="contract-hint text-[10px] text-slate-500 mt-0.5">보험사별로 나뉘어 있습니다. 상품을 누르면 그 상품의 담보 내역이 보입니다.</p>
+            <p class="text-[10px] text-slate-500 mt-0.5">보험사별로 나뉘어 있습니다.</p>
+            <div class="tap-tip contract-hint no-print" style="margin-top:8px"><span style="font-size:14px">👆</span> 상품을 눌러서 담보 내역을 확인하세요</div>
           </div>
           ${existingList.length === 0 ? `<div class="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-400 text-center">등록된 기존 계약이 없습니다.</div>` : `
           <div class="space-y-2.5">
@@ -1955,7 +1963,7 @@
                 </div>
                 <div class="divide-y divide-slate-100">
                   ${g.items.map((x) => `
-                    <button type="button" data-contract="${x.i}" class="block w-full text-left cursor-pointer px-3 py-2.5 bg-white ${x.c.checked ? "" : "opacity-40"}">
+                    <button type="button" data-contract="${x.i}" class="block w-full text-left tap-row px-3 py-2.5 bg-white ${x.c.checked ? "" : "opacity-40"}">
                       <div class="flex items-start justify-between gap-2">
                         <div class="min-w-0">
                           <p class="text-xs font-extrabold text-slate-900">${esc(x.c.productName || "보유 계약")}</p>
@@ -1963,9 +1971,11 @@
                         </div>
                         <div class="text-right shrink-0">
                           <p class="text-xs font-black text-slate-900 whitespace-nowrap">${esc(x.c.premium || "-")}</p>
-                          <p class="text-[10px] font-bold text-indigo-600">담보 ${(x.c.riders || []).length}개<span class="contract-hint"> ›</span></p>
+                          <p class="text-[10px] font-bold text-indigo-600">담보 ${(x.c.riders || []).length}개</p>
+                          <span class="contract-hint tap-chip">자세히 보기 ›</span>
                         </div>
                       </div>
+                      ${g === compGroups[0] && x === g.items[0] ? fingerContract : ""}
                     </button>`).join("")}
                 </div>
               </div>`).join("")}
@@ -2122,7 +2132,7 @@
       };
       if (!root.__friendBound) {
         root.__friendBound = true;
-        root.addEventListener("click", (e) => { const b = e.target.closest("[data-friend]"); if (b) window.__showFriend(b.getAttribute("data-friend")); });
+        root.addEventListener("click", (e) => { const b = e.target.closest("[data-friend]"); if (b) { document.querySelectorAll(".tap-finger").forEach((f) => f.remove()); window.__showFriend(b.getAttribute("data-friend")); } });
       }
       if (window.__friendKey != null) window.__showFriend(window.__friendKey); // 체크박스 등으로 다시 그려도 열려 있는 창 내용을 갱신
       // 보유 계약의 상품을 누르면 그 상품의 담보 내역이 창으로 뜹니다 (인쇄·PDF에는 위의 펼친 내용이 대신 들어갑니다)
@@ -2149,7 +2159,7 @@
       const holdRoot = contractsRoot || root;
       if (!holdRoot.__contractBound) {
         holdRoot.__contractBound = true;
-        holdRoot.addEventListener("click", (e) => { const b = e.target.closest("[data-contract]"); if (b) window.__showContract(b.getAttribute("data-contract")); });
+        holdRoot.addEventListener("click", (e) => { const b = e.target.closest("[data-contract]"); if (b) { document.querySelectorAll(".tap-finger").forEach((f) => f.remove()); window.__showContract(b.getAttribute("data-contract")); } });
       }
       if (window.__contractKey != null) window.__showContract(window.__contractKey); // 체크박스 등으로 다시 그려도 열려 있는 창 내용을 갱신
       if (contractsRoot) {
@@ -2219,6 +2229,7 @@
             "#compareSumBar .border-b{border-color:#" + m.B + "!important}}";
         }
       }
+      css += ":root{--tapColor:#" + (t.light ? t.light.ACC : "1C39BB") + "}"; // '눌러서 보세요' 표시 색 = 테마 포인트 색
       // 계약현황 요약 배경 방패 색: 테마마다 어울리는 색으로 (A: 윗부분 밝은 색, B: 중간, C: 아랫부분 진한 색, G: 은은한 빛)
       // 5번째 값: '신규 제안' 칸 배경(방패가 은은하게 비치는 정도), 6번째 값: 칸 뒤 흐림(px, 0이면 없음)
       const SHIELD = {
@@ -2282,6 +2293,21 @@
       background: #f8fafc;
     }
     .friend-print, .contract-print { display: none; }
+    /* '눌러서 보세요' 표시: 안내 알약 · 버튼 모양 칩 · 올리면 떠오름/눌림 · 처음에만 까딱이는 손가락 (색은 테마의 포인트 색) */
+    .tap-tip { display: inline-flex; align-items: center; gap: 6px; background: var(--tapColor, #1C39BB); color: #fff; font-size: 11px; font-weight: 800; padding: 5px 11px; border-radius: 999px; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+    .tap-chip { display: inline-flex; align-items: center; margin-top: 6px; background: #fff; color: var(--tapColor, #1C39BB); border: 1px solid var(--tapColor, #1C39BB); border-radius: 999px; padding: 2px 9px; font-size: 10px; font-weight: 800; }
+    .tap-card { position: relative; cursor: pointer; box-shadow: 0 2px 8px rgba(15,23,42,.12); transition: transform .15s ease, box-shadow .15s ease; }
+    .tap-card:active { transform: scale(.98); }
+    .tap-row { position: relative; cursor: pointer; transition: background-color .15s ease; }
+    .tap-row:active { background-color: #e2e8f0; }
+    @media (hover: hover) {
+      .tap-card:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(15,23,42,.2); }
+      .tap-row:hover { background-color: #f1f5f9; }
+    }
+    .tap-finger { position: absolute; right: 8px; bottom: 6px; font-size: 22px; line-height: 1; pointer-events: none; z-index: 2; filter: drop-shadow(0 2px 3px rgba(0,0,0,.3)); animation: tapBounce .9s ease-in-out 4, tapFade .5s ease 3.6s forwards; }
+    @keyframes tapBounce { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-6px, -8px); } }
+    @keyframes tapFade { to { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .tap-finger { display: none; } }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     [data-excluded][data-excluded] { display: none !important; }
@@ -2329,6 +2355,7 @@
       /* 계약·비교: 합계 상자 바로 아래에서 비교분석표가 이어서 시작 (표는 줄 단위로 쪽을 넘어가고 머리글이 반복됨) */
       #compareTableCard, #insurerCompareCard { break-inside: auto !important; page-break-inside: auto !important; }
       .friend-hint, .contract-hint { display: none !important; }
+      .tap-tip, .tap-finger { display: none !important; }
     }
   </style>
 </head>
