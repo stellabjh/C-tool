@@ -1867,8 +1867,17 @@
       // 기존 계약만 기준으로 한 다섯 친구 진단 (신호등은 기존 + 신규 합산, 상세 창은 기존 계약만)
       const signalsEx = computeFriendSignals(DATA.profile, existingList, [], parseNum);
       const otherRiders = ((signalsEx.unmatched) || []).filter((x) => !x.proposed);
+      // '그 밖의 담보'는 다섯째 친구 옆 칸에 친구 카드와 같은 모양으로 넣습니다
       const otherBtnHtml = signals.length === 0 || otherRiders.length === 0 ? "" : `
-          <button type="button" data-friend="other" class="friend-hint tap-card w-full text-left px-3 py-2 rounded-lg border border-slate-300 bg-slate-50 text-[11px] font-bold text-slate-600 flex items-center justify-between"><span>📎 그 밖의 담보 <span class="text-[9px] font-semibold text-slate-400">표에 없는 담보 ${otherRiders.length}개</span></span><span>›</span></button>`;
+              <button type="button" data-friend="other" class="${signals.length % 2 === 0 ? "col-span-2" : ""} block w-full text-left tap-card px-2.5 py-2 rounded-lg border ${LIGHT.gray.chip}">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="text-[9px] font-bold opacity-70">기타</span>
+                  <span class="px-1.5 rounded text-[9px] font-extrabold border ${LIGHT.gray.chip}">${otherRiders.length}개</span>
+                </div>
+                <p class="text-[11px] font-extrabold flex items-center gap-1 leading-tight mt-0.5"><span class="shrink-0">📎</span>그 밖의 담보</p>
+                <p class="text-[10px] leading-tight mt-0.5"><span class="opacity-60">표에 없는 담보 </span><span class="font-black text-slate-800">${otherRiders.length}개</span></p>
+                <span class="friend-hint tap-chip">자세히 보기 ›</span>
+              </button>`;
       // ---- 보장분석신호등: 소득 정보가 있으면 다섯 친구 기준, 없으면 담보 8항목 기준 ----
       const fcount = { green: 0, yellow: 0, red: 0, gray: 0 };
       signals.forEach((s) => fcount[s.status.color]++);
@@ -1891,7 +1900,7 @@
           </div>
           <div class="grid grid-cols-2 gap-1.5">
             ${signals.map((s, i) => `
-              <button type="button" data-friend="${i}" class="${i === signals.length - 1 && signals.length % 2 === 1 ? "col-span-2" : ""} block w-full text-left tap-card px-2.5 py-2 rounded-lg border ${LIGHT[s.status.color].chip}">
+              <button type="button" data-friend="${i}" class="${i === signals.length - 1 && signals.length % 2 === 1 && !otherBtnHtml ? "col-span-2" : ""} block w-full text-left tap-card px-2.5 py-2 rounded-lg border ${LIGHT[s.status.color].chip}">
                 <div class="flex items-center justify-between gap-1">
                   <span class="text-[9px] font-bold opacity-70">${esc(s.order)}</span>
                   <span class="px-1.5 rounded text-[9px] font-extrabold border ${LIGHT[s.status.color].chip}">${s.status.text}</span>
@@ -1902,8 +1911,8 @@
                 <span class="friend-hint tap-chip">자세히 보기 ›</span>
                 ${i === 0 ? fingerFriend : ""}
               </button>`).join("")}
+            ${otherBtnHtml}
           </div>
-          ${otherBtnHtml}
           <details class="text-[10px] text-slate-500">
             <summary class="cursor-pointer font-semibold text-slate-600">판정 기준 보기</summary>
             <ul class="mt-1.5 space-y-1 leading-snug">
