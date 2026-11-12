@@ -1867,8 +1867,8 @@
       // 기존 계약만 기준으로 한 다섯 친구 진단 (신호등은 기존 + 신규 합산, 상세 창은 기존 계약만)
       const signalsEx = computeFriendSignals(DATA.profile, existingList, [], parseNum);
       const otherRiders = ((signalsEx.unmatched) || []).filter((x) => !x.proposed);
-      // '그 밖의 담보'는 다섯째 친구 옆 칸에 친구 카드와 같은 모양으로 항상 넣습니다 (없으면 0개)
-      const otherBtnHtml = signals.length === 0 ? "" : `
+      // '그 밖의 담보'는 다섯째 친구 옆 칸에 친구 카드와 같은 모양으로 넣습니다
+      const otherBtnHtml = signals.length === 0 || otherRiders.length === 0 ? "" : `
               <button type="button" data-friend="other" class="${signals.length % 2 === 0 ? "col-span-2" : ""} block w-full text-left tap-card px-2.5 py-2 rounded-lg border ${LIGHT.gray.chip}">
                 <div class="flex items-center justify-between gap-1">
                   <span class="text-[9px] font-bold opacity-70">기타</span>
@@ -2077,11 +2077,11 @@
         <div class="space-y-2.5">
           <div style="padding-right:36px;"><p class="text-[10px] font-bold text-slate-400">기존 계약 기준</p><h4 class="text-base font-extrabold text-slate-900">📎 그 밖의 담보 <span class="text-[10px] font-bold text-slate-400">표에 없는 담보</span></h4></div>
           <div class="space-y-1">
-            ${otherRiders.length ? otherRiders.map((x) => `
+            ${otherRiders.map((x) => `
               <div class="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2">
                 <span class="min-w-0 truncate text-[11px]"><span class="font-bold text-slate-800">${esc(x.name)}</span> <span class="text-[9px] text-slate-400">${esc(x.company)}</span></span>
                 <span class="text-[11px] font-black text-slate-900 shrink-0">${fmt(x.amount)}</span>
-              </div>`).join("") : `<p class="text-[11px] text-slate-400 text-center py-3">표에 없는 담보가 없습니다.</p>`}
+              </div>`).join("")}
           </div>
         </div>`;
       window.__friendModal = { friends: friendModalHtml, other: otherModalHtml };
