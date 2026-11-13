@@ -3818,13 +3818,14 @@ ${keys.map(k => `상황${k}: ${situation[k]}`).join("\n")}
     const pdfNorm = (t) => String(t || "").replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)).replace(/\u3000/g, " ").replace(/\s+/g, " ").trim();
     const pdfJoinSmart = (items) => items.map(i => i.s).reduce((a, s) => a ? (/^\s*[(\[]/.test(s) || /\s$/.test(a) ? a + s : a + " " + s) : s, "");
     function classifyByName(rawName) {
-      const n = pdfNorm(rawName).replace(/\s+/g, "");
+      const n = pdfNorm(rawName).replace(/\s+/g, "").replace(/\(?유사암제외\)?/g, "").replace(/\(암\(?4대유사암제외\)?[^)]*\)/g, "");
       const r = (cat, kind, std) => ({ cat, kind, std: std || "" });
-      if (/후유장해|고도장해|재활자금/.test(n)) return r("기타", "후유장해", /상해.*(후유장해|고도후유|일반후유)/.test(n) ? "상해80%미만후유장해" : "");
-      if (/사망/.test(n) && !/교통사고|형사|피해자/.test(n)) return r("사망", "사망", /^상해사망$|^일반상해사망$/.test(n.replace(/\[.*?\]|\*/g, "")) ? "상해사망" : /^질병사망$/.test(n.replace(/\[.*?\]|\*/g, "")) ? "질병사망" : "");
+      const b = n.replace(/\[.*?\]|\*/g, "").replace(/^\(\d+년갱신\)/, "").replace(/^갱신형/, "");
+      if (/후유장해|고도장해|재활자금/.test(n)) return r("기타", "후유장해", /상해.*(후유장해|고도후유|일반후유)/.test(n) && !/80%이상|사망/.test(n) ? "상해80%미만후유장해" : "");
+      if (/사망/.test(n) && !/교통사고|형사|피해자/.test(n)) return r("사망", "사망", /^(일반)?상해사망(\(.*\))?$/.test(b) ? "상해사망" : /^질병사망(\(.*\))?$/.test(b) ? "질병사망" : "");
       if (/암진단/.test(n)) {
         if (/기타피부암|갑상[샘선]암|상피내암|경계성종양|유사암|소액암/.test(n)) return r("유사암", "진단비", "유사암 진단비");
-        if (/고액/.test(n)) return r("일반암", "진단비", "");
+        if (/고액|특정|16대|계속암|재진단/.test(n)) return r("일반암", "진단비", "");
         return r("일반암", "진단비", "일반암 진단비");
       }
       if (/암입원일당/.test(n)) return r("입원", "입원일당", "");
@@ -3834,10 +3835,11 @@ ${keys.map(k => `상황${k}: ${situation[k]}`).join("\n")}
       if (/뇌출혈진단/.test(n)) return r("뇌혈관", "진단비", "뇌출혈 진단비");
       if (/급성심근경색.*진단/.test(n)) return r("허혈", "진단비", "급성심근경색 진단비");
       if (/허혈성심장질환.*진단/.test(n)) return r("허혈", "진단비", "허혈성심장질환 진단비");
-      if (/골절/.test(n)) return r("골절", "진단비", "");
+      if (/골절/.test(n) && !/수술/.test(n)) return r("골절", "진단비", "");
       if (/진단비/.test(n)) return r("기타", "진단비", "");
-      if (/수술/.test(n)) return r("수술", "수술비", /^상해수술비/.test(n.replace(/\[.*?\]|\*/g, "")) ? "상해수술비" : /^질병수술비/.test(n.replace(/\[.*?\]|\*/g, "")) ? "질병수술비" : "");
+      if (/수술/.test(n)) return r("수술", "수술비", /^상해수술비/.test(b) ? "상해수술비" : /^질병수술비/.test(b) ? "질병수술비" : "");
       if (/입원일당|장기입원비/.test(n)) return r("입원", "입원일당", /상해입원일당/.test(n) ? "상해입원일당" : /질병입원일당/.test(n) ? "질병입원일당" : "");
+      if (/도수치료|체외충격파|증식치료|비급여주사|자기공명|MRI/.test(n) && /실손/.test(n)) return r("기타", "기타", "3대비급여실손");
       if (/입원의료비|통원의료비|처방조제|외래의료비/.test(n)) return r("기타", "기타", "실손의료비");
       if (/배상책임/.test(n)) return r("배상책임", "배상책임", /가족.*배상/.test(n) ? "일상생활배상책임 가족(자녀)포함" : "");
       if (/교통사고처리지원금/.test(n)) return r("배상책임", "배상책임", "교통사고 처리지원금");
@@ -3933,18 +3935,290 @@ ${keys.map(k => `상황${k}: ${situation[k]}`).join("\n")}
       return out;
     }
 
+
+    // 한글 금액 -> 만원 단위 숫자 ("1천5백만원"=1500, "5백만원"=500, "3만원"=3, "1억원"=10000, "100 만원"=100)
+    function koManwon(str) {
+      const t = String(str || "").replace(/[,\s원]/g, "");
+      if (!t) return 0;
+      const unit = (x) => { let n = 0, m; const re = /(\d+)([천백십])?/g; while ((m = re.exec(x))) n += Number(m[1]) * ({ 천: 1000, 백: 100, 십: 10 }[m[2]] || 1); return n; };
+      let total = 0, rest = t, m;
+      if ((m = rest.match(/^(.*?)억/))) { total += (unit(m[1]) || 1) * 10000; rest = rest.slice(m[0].length); }
+      if ((m = rest.match(/^(.*?)만/))) total += unit(m[1]);
+      else if (rest) total += unit(rest) / 10000;
+      return total;
+    }
+    const koAmountRe = /^\d[\d,]*\s*[천백십]?[천백십\d]*\s*(억|만)?\s*원$|^\d[\d,]*\s*(억|만)\s*원$/;
+    const pdfBirth = (m) => m ? `${m[1]}-${String(m[2]).padStart(2, "0")}-${String(m[3]).padStart(2, "0")}` : "";
+    const pdfRrnBirth = (s) => { const m = String(s).match(/(\d{2})(\d{2})(\d{2})-(\d)/); if (!m) return ""; const cent = "3478".includes(m[4]) ? 2000 : 1900; return `${cent + Number(m[1])}-${m[2]}-${m[3]}`; };
+    function pdfFinishContract(out, c, notes, opts) {
+      const skipped = [];
+      c.riders = c.riders.map(r => {
+        const k = classifyByName(r.name);
+        const manwon = koManwon(r.amount);
+        return { cat: k.cat === "기타" ? r.name : k.cat, kind: k.kind, std: k.std, name: r.name, amount: manwon ? kbFmtAmount(manwon) : r.amount, amountManwon: manwon, riderPrem: "", reductionPeriod: "", reductionAmount: "", _pay: r.pay || "" };
+      });
+      let conf = 100;
+      if (!c.riders.length) { conf = 0; notes.push("담보를 하나도 찾지 못했습니다."); }
+      const noAmt = c.riders.filter(r => !r.amountManwon).length;
+      if (noAmt) { conf -= Math.min(60, noAmt * 20); notes.push(`가입금액을 못 읽은 담보 ${noAmt}개: ` + c.riders.filter(r => !r.amountManwon).map(r => r.name).join(", ")); }
+      if (!c.productName) { conf -= 20; notes.push("상품명을 찾지 못했습니다."); }
+      if (!c.premium) { conf -= 20; notes.push("보험료를 찾지 못했습니다."); }
+      const first = c.riders.find(r => r._pay);
+      c.period = c.period || (first ? first._pay : "");
+      if (opts && opts.noRiderPrem) notes.push("이 증권에는 담보별 보험료가 없어 비워 두었습니다.");
+      out.contracts.push(c);
+      out.confidence = Math.max(0, conf);
+      out.notes = notes.join(" ");
+    }
+
+    // ======================= 메리츠화재 보험증권 =======================
+    function isMeritzPolicy(pages) {
+      const t = pages.slice(0, 3).map(p => p.map(i => i.s).join("")).join("");
+      return /메리츠|meritzfire/i.test(t) && /담보명\s*및\s*보장내용/.test(t) && /보험증권/.test(t);
+    }
+    function parseMeritzPolicy(pages) {
+      const notes = [];
+      const out = { docType: "existing", confidence: 100, pageCount: pages.length, customer: { name: "", insuredName: "", birth: "" }, contracts: [], notes: "", engine: "meritz_policy" };
+      const c = { company: "메리츠화재", productName: "", premium: "", period: "", contractDate: "", status: "정상", riders: [] };
+      let prev = null, lastGap = 0;
+      pages.forEach((items, pi) => {
+        const rows = kbGroupRows(items);
+        if (pi === 0) {
+          rows.forEach((r, ri) => {
+            const f = r.items, t = pdfNorm(kbJoin(f));
+            if (!c.productName && /^보험증권$/.test(t.replace(/\s/g, ""))) {
+              const parts = []; for (let k = ri + 1; k < rows.length; k++) { if (/예금자보호법|^기본사항/.test(kbJoin(rows[k].items))) break; parts.push(pdfNorm(pdfJoinSmart(rows[k].items))); }
+              c.productName = parts.join(" ").replace(/\s+/g, " ").trim();
+            }
+            if (/^증권번호/.test(t) && !c.contractDate) { const m = t.match(/청약일자\s*(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); c.contractDate = pdfBirth(m); }
+            if (/^계약자/.test(t) && !out.customer.name) {
+              const nm = f.find(i => i.x > 100 && i.x < 300); if (nm) { out.customer.name = nm.s.trim(); out.customer.insuredName = nm.s.trim(); }
+              const m = t.match(/성별.*?([여남]),?\s*(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); if (m) out.customer.birth = pdfBirth([0, m[2], m[3], m[4]]);
+            }
+            if (/^납입보험료/.test(t)) { const v = f.find(i => i.x > 100 && i.x < 300 && /^[\d,]+$/.test(i.s)); if (v) c.premium = v.s + "원"; }
+          });
+        }
+        const hi = rows.findIndex(r => /담보명\s*및\s*보장내용/.test(kbJoin(r.items)));
+        if (hi < 0) return;
+        const boldF = (rows[hi].items.find(i => /담보명/.test(i.s)) || {}).f;
+        for (let k = hi + 1; k < rows.length; k++) {
+          const r = rows[k]; if (r.y < 55) break;
+          if (/담보명\s*및\s*보장내용|구\s*분.*지\s*급\s*금\s*액/.test(kbJoin(r.items))) { if (/지\s*급\s*금\s*액/.test(kbJoin(r.items))) break; continue; }
+          if (r.items.some(i => i.x < 30 && i.f === boldF && i.s.length > 3)) break; // 다른 표(예: 82대질병수술비)가 시작됨
+          const firstIt = r.items.find(i => i.x >= 45); // 맨 왼쪽의 "기본/선택 계약" 표시는 건너뜀
+          const nameBits = firstIt && firstIt.f === boldF && firstIt.x < 60 ? r.items.filter(i => i.f === boldF && i.x >= 48 && i.x < 400) : [];
+          if (nameBits.length && /^(각각|최초|연간|수술|입원|매)?\s*\d*\s*(회|일|사고)(당|한)?$/.test(pdfNorm(nameBits.map(i => i.s).join("")).replace(/\s/g, ""))) nameBits.length = 0; // "수술1회당" 같은 설명 조각은 담보명이 아님
+          if (nameBits.length) {
+            const nm = pdfNorm(nameBits.map(i => i.s).join("")).replace(/\[(기본|선택)계약\]/g, "").trim();
+            if (prev && !prev.amount && !prev.pay && lastGap <= 16 && Math.abs(lastGap) >= 0 && prev._y - r.y <= 16) { prev.name = pdfNorm(prev.name + nm); prev._y = r.y; }
+            else { prev = { name: nm, amount: "", pay: "", mat: "", _y: r.y }; c.riders.push(prev); }
+            lastGap = 0;
+          }
+          if (!prev) continue;
+          r.items.forEach(i => {
+            if (i.x >= 425 && i.x < 458 && koAmountRe.test(i.s.trim()) && !prev.amount) prev.amount = i.s.trim();
+          });
+          const right = r.items.filter(i => i.x >= 520);
+          const rt = pdfNorm(right.map(i => i.s).join(""));
+          if (/년납|월납|일시납/.test(rt) && !prev.pay) prev.pay = rt.replace(/^(\d+)(년납).*/, "$1$2");
+          if (/만기/.test(rt) && !prev.mat) prev.mat = rt.match(/\d+(세|년)만기/) ? rt.match(/\d+(세|년)만기/)[0] : "";
+        }
+      });
+      c.riders.forEach(r => { r.pay = [r.pay, r.mat].filter(Boolean).join(" "); });
+      const auto = c.riders.filter(r => /보험료\s*자동납입/.test(r.name) && !r.amount);
+      if (auto.length) { c.riders = c.riders.filter(r => !auto.includes(r)); notes.push("'보험료자동납입특약'은 보장이 아니라 담보에서 뺐습니다."); }
+      pdfFinishContract(out, c, notes, { noRiderPrem: true });
+      return out;
+    }
+
+    // ======================= DB손해보험 보험증권 =======================
+    function isDbPolicy(pages) {
+      const t = pages.slice(0, 3).map(p => p.map(i => i.s).join("")).join("");
+      return /보험증권\s*\[?\s*보험가입증서/.test(t) && /idbins|DB손해보험|프로미라이프/i.test(t) && /가입담보/.test(t);
+    }
+    function parseDbPolicy(pages) {
+      const notes = [];
+      const out = { docType: "existing", confidence: 100, pageCount: pages.length, customer: { name: "", insuredName: "", birth: "" }, contracts: [], notes: "", engine: "db_policy" };
+      const c = { company: "DB손해보험", productName: "", premium: "", period: "", contractDate: "", status: "정상", riders: [] };
+      pages.forEach((items, pi) => {
+        const rows = kbGroupRows(items);
+        if (pi === 0) rows.forEach(r => {
+          const t = pdfNorm(kbJoin(r.items)), f = r.items;
+          if (/^보험종목/.test(t) && !c.productName) { const v = f.filter(i => i.x > 100 && i.x < 300); c.productName = pdfNorm(pdfJoinSmart(v)); }
+          if (!out.customer.name && f.some(i => /\d{6}-\d/.test(i.s)) && f[0].x > 100 && f[0].x < 130 && !/계약사항|보험료/.test(t)) {
+            out.customer.name = f[0].s.trim(); out.customer.insuredName = out.customer.name; out.customer.birth = pdfRrnBirth(t);
+          }
+          if (/보험기간/.test(t) && !c.contractDate) { const m = t.match(/보험기간\s*(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/); if (m) c.contractDate = pdfBirth(m); }
+          if (/^보험료/.test(t) && !c.premium) { const m = t.match(/^보험료\s*([\d,]+)원/); if (m) c.premium = m[1] + "원"; }
+          if (/^계약사항/.test(t) && !c.period) { const m = t.match(/(\d+)년만기\s*\/\s*(\d+)년납/); if (m) c.period = `${m[2]}년납 ${m[1]}년만기`; }
+        });
+        const hi = rows.findIndex(r => /가입담보/.test(kbJoin(r.items)) && /보험가입금액/.test(kbJoin(r.items)));
+        if (hi < 0) return;
+        let buf = [];
+        for (let k = hi + 1; k < rows.length; k++) {
+          const r = rows[k], t = kbJoin(r.items);
+          if (/^☞|^※\s*보험증권|보험료\s*납입면제에\s*관한/.test(t) || r.y < 60) break;
+          buf.push(r);
+          if (r.items.some(i => i.x >= 460 && /^\d{4}-\d{2}-\d{2}~\d{4}-\d{2}-\d{2}$/.test(i.s.trim()))) { // 담보 한 개의 끝
+            const name = pdfNorm(buf.flatMap(b => b.items.filter(i => i.x < 110)).map(i => i.s).join("")).replace(/\s*\/\s*보통약관$/, "").replace(/(?<=\))보통약관$/, "").trim();
+            const amtIt = buf.flatMap(b => b.items).find(i => i.x >= 400 && i.x < 470 && /(만|억)\s*원$/.test(i.s.trim()));
+            const payIt = buf.flatMap(b => b.items).filter(i => i.x >= 460 && /납기|만기/.test(i.s));
+            const pm = payIt.map(i => i.s).join(" ");
+            const mat = (pm.match(/(\d+)년만기/) || [])[0], pay = (pm.match(/(\d+)년납/) || [])[0];
+            c.riders.push({ name, amount: amtIt ? amtIt.s.trim() : "", pay: [pay, mat].filter(Boolean).join(" ") });
+            buf = [];
+          }
+        }
+      });
+      // 담보명이 칸 끝에서 줄바꿈되어 다음 담보 쪽으로 넘어간 조각을 제자리로 돌려놓습니다
+      for (let i = 0; i < c.riders.length - 1; i++) {
+        const open = (c.riders[i].name.match(/\(/g) || []).length - (c.riders[i].name.match(/\)/g) || []).length;
+        if (open > 0) { const m = c.riders[i + 1].name.match(/^([^)]*\))/); if (m) { c.riders[i].name += m[1]; c.riders[i + 1].name = c.riders[i + 1].name.slice(m[1].length); } }
+      }
+      c.riders.forEach(r => { r.name = r.name.replace(/\s*\/\s*$/, "").replace(/^보통약관(?=상해|질병)/, "").trim(); });
+      pdfFinishContract(out, c, notes, { noRiderPrem: true });
+      return out;
+    }
+
+
+    // ======================= KB손해보험 보험증권(계약자용) =======================
+    function isKbPolicy(pages) {
+      const t = pages.slice(0, 3).map(p => p.map(i => i.s).join("")).join("");
+      return /보험증권\(계약자용\)/.test(t) && /보장명\s*및\s*보장내용/.test(t) && /KB/.test(t);
+    }
+    function isKbSilsonPolicy(pages) {
+      const t = pages.slice(0, 3).map(p => p.map(i => i.s).join("")).join("");
+      return /실손의료보험\s*보험증권/.test(t) && /보상종목/.test(t) && /KB/.test(t);
+    }
+    function kbPolicyHeader(rows, out, c) {
+      rows.forEach((r, ri) => {
+        const f = r.items, t = pdfNorm(kbJoin(f));
+        if (!c.productName && /^보험증권|^실손의료보험\s*보험증권/.test(t.replace(/\s/g, "")) && !/^보험증권$/.test(t)) {
+          // 제목 줄 아래 상품명 줄
+          const nx = rows[ri + 1]; if (nx) c.productName = pdfNorm(pdfJoinSmart(nx.items));
+        }
+        if (/^계약자/.test(t) && /증권번호/.test(t) && !out.customer.name) { const nm = f.find(i => i.x > 105 && i.x < 160); if (nm) out.customer.name = nm.s.trim().split(/[\s|]/)[0]; }
+        if (!c.premium && /1회보험료/.test(t)) { const v = f.find(i => i.x > 420 && /원$/.test(i.s)); if (v) c.premium = v.s.replace(/\s/g, ""); }
+        if (!c.contractDate && /^보험기간/.test(t)) { const m = t.match(/(\d{4})-(\d{2})-(\d{2})/); if (m) c.contractDate = m[0]; }
+        if (!out.customer.insuredName) { const it = f.find(i => i.x > 105 && i.x < 140 && /\(\d{6}-\d/.test(i.s)); if (it && /^피보험자/.test(rows[ri - 1] ? pdfNorm(kbJoin(rows[ri - 1].items)) : "") || (it && /^피보험자$|^피보험자\s/.test(t) )) { /* 아래 줄에서 처리 */ } }
+        const rrn = f.find(i => i.x > 105 && i.x < 140 && /^[가-힣A-Za-z·]{2,}\(\d{6}-\d/.test(i.s.trim()));
+        if (rrn && !out.customer.insuredName) { const m = rrn.s.trim().match(/^(.+?)\((\d{6}-\d)/); out.customer.insuredName = m[1]; out.customer.birth = pdfRrnBirth(m[2]); }
+      });
+      if (!out.customer.name) out.customer.name = out.customer.insuredName;
+    }
+    function parseKbPolicy(pages) {
+      const notes = [];
+      const out = { docType: "existing", confidence: 100, pageCount: pages.length, customer: { name: "", insuredName: "", birth: "" }, contracts: [], notes: "", engine: "kb_policy" };
+      const c = { company: "KB손보", productName: "", premium: "", period: "", contractDate: "", status: "정상", riders: [] };
+      const startRe = /^(\d{1,4})\s+(\S.*)$/, matRe = /^\d+(년\s*갱신|년갱신|세)$/;
+      const fontVotes = {}; // 담보 이름 줄은 설명보다 굵은 글꼴 → "번호 + 이름" 줄 중 보험기간 칸이 가까이 있는 줄의 글꼴을 찾음
+      pages.forEach(items => {
+        const rows = kbGroupRows(items);
+        rows.forEach((r, k) => {
+          const a0 = r.items[0]; if (!(a0 && a0.x >= 30 && a0.x < 62 && startRe.test(a0.s))) return;
+          for (let q = k; q < rows.length && rows[q].y > r.y - 30; q++) { if (q > k && rows[q].items[0].x < 62 && startRe.test(rows[q].items[0].s)) break; if (rows[q].items.some(i => i.x >= 505 && matRe.test(i.s.trim()))) { fontVotes[a0.f] = (fontVotes[a0.f] || 0) + 1; break; } }
+        });
+      });
+      const nameFont = Object.keys(fontVotes).sort((a, b) => fontVotes[b] - fontVotes[a])[0];
+      pages.forEach((items, pi) => {
+        const rows = kbGroupRows(items);
+        if (pi === 0) kbPolicyHeader(rows, out, c);
+        const hi = rows.findIndex(r => /보장명\s*및\s*보장내용/.test(kbJoin(r.items)));
+        if (hi < 0) return;
+        const boldF = (rows[hi].items.find(i => /보장명/.test(i.s)) || {}).f;
+        let cur = null;
+        for (let k = hi + 1; k < rows.length; k++) {
+          const r = rows[k]; if (r.y < 95) break;
+          const first = r.items[0].x >= 30 && r.items[0].x < 62 ? r.items[0] : null;
+          const nm = first ? first.s.match(startRe) : null;
+          const matRe = /^\d+(년\s*갱신|년갱신|세)$/;
+          const isStart = !!nm && first.f === nameFont;
+          if (isStart) {
+            const rest = r.items.filter(i => i !== first && i.x >= 60 && i.x < 395).map(i => i.s).join("");
+            cur = { name: pdfNorm(nm[2] + rest), amount: "", payY: "", mat: "", end: "", part: "" };
+            c.riders.push(cur);
+          }
+          if (!cur) continue;
+          r.items.forEach(i => {
+            const t = i.s.trim();
+            if (i.x >= 395 && i.x < 440 && koAmountRe.test(t) && !cur.amount) cur.amount = t;
+            else if (i.x >= 395 && i.x < 440 && /^\d[\d,]*[천백십\d]*(억|만)$/.test(t) && !cur.amount) cur.part = t; // "1천2백만" + 다음 줄 "원"
+            else if (i.x >= 410 && i.x < 450 && t === "원" && cur.part && !cur.amount) cur.amount = cur.part + "원";
+            else if (i.x >= 445 && i.x < 480 && /^\d+년$/.test(t) && !cur.payY) cur.payY = t;
+            else if (i.x >= 495 && /^\d+(년\s*갱신|년갱신)$/.test(t)) cur.mat = t.replace(/\s/g, "");
+            else if (i.x >= 495 && /^\d+세$/.test(t) && !cur.mat) cur.mat = t + "만기";
+            else if (i.x >= 490 && /갱신종료/.test(t)) { const m = t.match(/(\d+)세/); if (m) cur.end = m[1] + "세"; }
+          });
+        }
+      });
+      c.riders.forEach(r => { r.pay = [r.payY ? r.payY + "납" : "", r.mat + (r.end ? `(${r.end}까지)` : "")].filter(Boolean).join(" "); });
+      pdfFinishContract(out, c, notes, { noRiderPrem: true });
+      return out;
+    }
+
+    function parseKbSilsonPolicy(pages) {
+      const notes = [];
+      const out = { docType: "existing", confidence: 100, pageCount: pages.length, customer: { name: "", insuredName: "", birth: "" }, contracts: [], notes: "", engine: "kb_silson_policy" };
+      const c = { company: "KB손보", productName: "", premium: "", period: "", contractDate: "", status: "정상", riders: [] };
+      pages.forEach((items, pi) => {
+        const rows = kbGroupRows(items);
+        if (pi === 0) {
+          kbPolicyHeader(rows, out, c);
+          rows.forEach(r => {
+            const t = pdfNorm(kbJoin(r.items));
+            if (/^계약자성명/.test(t)) { const it = r.items.find(i => /\(\d{6}-\d/.test(i.s)); if (it) out.customer.name = it.s.replace(/\(.*$/, "").trim(); }
+            if (/^피보험자성명/.test(t)) { const it = r.items.find(i => /\(\d{6}-\d/.test(i.s)); if (it) { const m = it.s.match(/^(.+?)\((\d{6}-\d)/); out.customer.insuredName = m[1]; out.customer.birth = pdfRrnBirth(m[2]); } }
+            if (/^보험기간/.test(t) && !c.contractDate) { const all = t.match(/(\d{4})-(\d{2})-(\d{2})/g); const sp = t.match(/보장주기\s*:\s*(\d{4}-\d{2}-\d{2})/); c.contractDate = sp ? sp[1] : (all ? all[0] : ""); }
+            if (/\d+년납\s*\d+년만기/.test(t) && !c.period) c.period = (t.match(/\d+년납\s*\d+년만기/) || [""])[0].replace(/\s+/g, " ") + ((t.match(/\d+년갱신/) || [""])[0] ? " " + t.match(/\d+년갱신/)[0] : "");
+          });
+        }
+        // 기본형: 보상종목 표 (입원 / 외래 / 처방조제 × 상해 / 질병)
+        const labels = rows.flatMap(r => r.items.filter(i => i.x >= 45 && i.x < 60 && /^(상해|질병)$/.test(i.s.trim())).map(i => ({ y: r.y, g: i.s.trim() })));
+        rows.forEach(r => {
+          const kindIt = r.items.find(i => i.x >= 80 && i.x < 150 && /^(입원|외래|처방조제|통원)$/.test(i.s.trim()));
+          const amtIt = r.items.find(i => i.x >= 180 && i.x < 215 && koAmountRe.test(i.s.trim()));
+          if (!kindIt || !amtIt || !labels.length) return;
+          const g = labels.reduce((b, l) => Math.abs(l.y - r.y) < Math.abs(b.y - r.y) ? l : b).g;
+          const k = kindIt.s.trim();
+          c.riders.push({ name: k === "입원" ? `${g}입원의료비` : k === "외래" ? `${g}통원의료비(외래)` : `${g}통원의료비(처방조제)`, amount: amtIt.s.trim(), pay: "1년갱신" });
+        });
+        // 특약형: "☞ 피보험자…" 로 시작하는 설명 덩어리마다 담보명(x≈49)과 가입금액(x≈187~199)
+        let blk = null; const blocks = [];
+        rows.forEach(r => {
+          if (r.items.some(i => i.x >= 225 && i.x < 235 && /^☞/.test(i.s.trim()))) { blk = { names: [], amount: "" }; blocks.push(blk); }
+          if (!blk) return;
+          r.items.forEach(i => {
+            if (i.x >= 45 && i.x < 60) blk.names.push(i.s);
+            if (i.x >= 180 && i.x < 215 && koAmountRe.test(i.s.trim())) blk.amount = blk.amount || i.s.trim();
+          });
+        });
+        blocks.forEach(b => { const nmj = b.names.join(""); if (b.amount && b.names.length && /특약형|비급여/.test(nmj)) c.riders.push({ name: pdfNorm(b.names.join("").replace(/^\(비급여70%\)\s*/, "비급여(70%) ")), amount: b.amount, pay: "1년갱신" }); });
+      });
+      c.productName = c.productName || "";
+      pdfFinishContract(out, c, notes, { noRiderPrem: true });
+      return out;
+    }
+
     // ======================= 서식 판별 =======================
     function detectPdfFormat(pages) {
       const text = pages.map(p => p.map(i => i.s).join("")).join("");
       if (text.replace(/\s/g, "").length < 50) return { id: "no_text", label: "글자 없는 PDF(스캔/그림)" };
       if (isKbReport(pages)) return { id: "kb_report", label: "KB손보 보장분석" };
       if (isSamsungPolicy(pages)) return { id: "samsung_policy", label: "삼성화재 보험증권" };
+      if (isKbSilsonPolicy(pages)) return { id: "kb_silson_policy", label: "KB손보 실손의료보험 증권" };
+      if (isKbPolicy(pages)) return { id: "kb_policy", label: "KB손보 보험증권" };
+      if (isMeritzPolicy(pages)) return { id: "meritz_policy", label: "메리츠화재 보험증권" };
+      if (isDbPolicy(pages)) return { id: "db_policy", label: "DB손해보험 보험증권" };
       return { id: "unknown", label: "알 수 없는 서식" };
     }
     function parseKnownPdf(pages) {
       const fmt = detectPdfFormat(pages);
       if (fmt.id === "kb_report") return Object.assign(parseKbReport(pages), { format: fmt });
       if (fmt.id === "samsung_policy") return Object.assign(parseSamsungPolicy(pages), { format: fmt });
+      if (fmt.id === "kb_policy") return Object.assign(parseKbPolicy(pages), { format: fmt });
+      if (fmt.id === "kb_silson_policy") return Object.assign(parseKbSilsonPolicy(pages), { format: fmt });
+      if (fmt.id === "meritz_policy") return Object.assign(parseMeritzPolicy(pages), { format: fmt });
+      if (fmt.id === "db_policy") return Object.assign(parseDbPolicy(pages), { format: fmt });
       return { format: fmt, contracts: [] };
     }
 
@@ -3969,7 +4243,7 @@ ${keys.map(k => `상황${k}: ${situation[k]}`).join("\n")}
         const pages = [];
         for (let p = 1; p <= doc.numPages; p++) {
           const tc = await (await doc.getPage(p)).getTextContent();
-          pages.push(tc.items.filter(i => i.str && i.str.trim()).map(i => ({ s: i.str, x: Math.round(i.transform[4]), y: Math.round(i.transform[5]) })));
+          pages.push(tc.items.filter(i => i.str && i.str.trim()).map(i => ({ s: i.str, x: Math.round(i.transform[4]), y: Math.round(i.transform[5]), f: i.fontName })));
         }
         return pages;
       } finally { doc.destroy(); }
